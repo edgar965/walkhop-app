@@ -34,7 +34,7 @@ jobs:
       - name: Xcode 26.5 wählen
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '26.5'
 
       - name: .NET einrichten
         uses: actions/setup-dotnet@v4
