@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Export-Compliance: App nutzt nur die Standard-iOS-Verschlüsselung (HTTPS/TLS),
+	     keine eigene/zusätzliche Krypto → exportbefreit; unterdrückt die Verschlüsselungs-
+	     Nachfrage bei jedem TestFlight-/App-Store-Upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Für die Navigation wird dein Standort benötigt, um deine Position auf der Karte zu zeigen.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
