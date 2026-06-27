@@ -9,6 +9,16 @@ obj/
 *.aab
 *.keystore
 
+# Signing-Material – NIEMALS committen (Apple/Android-Keys, Zertifikate, Profile)
+sign/
+*.p8
+*.p12
+*.cer
+*.csr
+*.pem
+*.key
+*.mobileprovision
+
 # Portables JDK 17 (nur lokal, ~180 MB – wird vom Emulator-Setup-Skript geholt)
 tools/jdk17/
 
