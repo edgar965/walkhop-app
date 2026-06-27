@@ -45,13 +45,11 @@ jobs:
         run: dotnet workload install maui
 
       # ---------- Variante A: nur bauen (kein Secret nötig) ----------
-      - name: Build (unsigniert) – nur Validierung
+      - name: Build (Simulator, ohne Signierung) – nur Validierung
         if: ${{ github.event_name == 'push' || inputs.publish != true }}
         run: >
           dotnet build "$PROJECT" -c "$CONFIG" -f "$TFM"
-          -p:RuntimeIdentifier=ios-arm64
-          -p:CodesignKey=
-          -p:CodesignProvision=
+          -p:RuntimeIdentifier=iossimulator-arm64
 
       # ---------- Variante B: signieren + zu TestFlight hochladen ----------
       - name: Signing-Zertifikat importieren
