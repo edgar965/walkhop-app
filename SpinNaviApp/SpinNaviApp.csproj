@@ -29,8 +29,8 @@
 		       <MauiXaml Update="MyPage.xaml" Inflator="Runtime" /> (force runtime inflation) -->
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
-		<!-- Display name (Launcher/Fenstertitel) -->
-		<ApplicationTitle>Spin1More</ApplicationTitle>
+		<!-- Display name (Launcher/Fenstertitel) – Default-Marke WalkHop -->
+		<ApplicationTitle>WalkHop</ApplicationTitle>
 
 		<!-- App Identifier -->
 		<ApplicationId>com.companyname.spinnaviapp</ApplicationId>
@@ -58,10 +58,10 @@
 
 	<ItemGroup>
 		<!-- App Icon -->
-		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0B8F42" />
 
 		<!-- Splash Screen -->
-		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0B8F42" BaseSize="128,128" />
 
 		<!-- Images -->
 		<MauiImage Include="Resources\Images\*" />
