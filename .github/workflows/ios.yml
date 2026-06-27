@@ -1,28 +1,28 @@
 name: iOS Build & TestFlight
 
-# Baut die WalkHop-MAUI-App auf einem echten macOS-Runner (iOS lässt sich NUR auf
-# macOS/Xcode bauen) und lädt sie auf Wunsch zu TestFlight/App Store Connect hoch.
+# Baut die WalkHop-MAUI-App auf macOS und lädt sie zu TestFlight hoch.
+# Nach dem ERPROBTEN Muster aus edgar965/CleanOrgaCleaner (gleiches Apple-Team E7F22WZ26P).
 #
-# - Bei jedem Push auf main: nur BAUEN (unsigniert) → prüft, dass die Pipeline lebt.
-# - Manuell (Run workflow → publish=true): SIGNIEREN + zu TestFlight HOCHLADEN.
-#   Dafür müssen die unten genannten Secrets/Variablen im Repo gesetzt sein.
+# - Push auf main: nur BAUEN (iOS-Simulator, unsigniert) → Pipeline-/Kompilier-Check ohne Secrets.
+# - Manuell (Run workflow): SIGNIEREN + zu TestFlight HOCHLADEN. Braucht diese Repo-Secrets:
+#     APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY (.p8)
+#     IOS_DISTRIBUTION_CERTIFICATE_BASE64, IOS_DISTRIBUTION_CERTIFICATE_PASSWORD (.p12)
+#     IOS_PROVISIONING_PROFILE_BASE64  (App-Store-Profil für die Bundle-ID „walkhop")
+#   und die Repo-Variable IOS_SIGNING_IDENTITY (z. B. "Apple Distribution: Edgar Maass (E7F22WZ26P)").
 
 on:
   push:
     branches: [main]
     paths: ['SpinNaviApp/**', '.github/workflows/ios.yml']
   workflow_dispatch:
-    inputs:
-      publish:
-        description: 'Zu TestFlight hochladen (signiert)'
-        type: boolean
-        default: false
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
-  PROJECT: SpinNaviApp/SpinNaviApp.csproj
   DOTNET_VERSION: '10.0.x'
-  CONFIG: Release
-  TFM: net10.0-ios
+  PROJECT: SpinNaviApp/SpinNaviApp.csproj
 
 jobs:
   build:
@@ -30,7 +30,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # .NET-iOS-Workload (26.5) verlangt Xcode 26.5 – passendes Xcode wählen.
       - name: Xcode 26.5 wählen
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -41,61 +40,79 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: MAUI-Workloads installieren (android+ios – Projekt multi-targetet)
+      - name: MAUI-Workloads installieren
         run: dotnet workload install maui
 
-      # ---------- Variante A: nur bauen (kein Secret nötig) ----------
-      - name: Build (Simulator, ohne Signierung) – nur Validierung
-        if: ${{ github.event_name == 'push' || inputs.publish != true }}
-        run: >
-          dotnet build "$PROJECT" -c "$CONFIG" -f "$TFM"
-          -p:RuntimeIdentifier=iossimulator-arm64
+      # ---------- Push: nur Validierung (Simulator, ohne Signierung) ----------
+      - name: Build (Simulator, ohne Signierung)
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: dotnet build "$PROJECT" -c Release -f net10.0-ios -p:RuntimeIdentifier=iossimulator-arm64
 
-      # ---------- Variante B: signieren + zu TestFlight hochladen ----------
-      - name: Signing-Zertifikat importieren
-        if: ${{ inputs.publish == true }}
-        uses: apple-actions/import-codesign-certs@v3
-        with:
-          p12-file-base64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
-          p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+      # ---------- Manuell: signieren + zu TestFlight hochladen ----------
+      - name: Signing-Zertifikat in Keychain importieren
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT=$RUNNER_TEMP/cert.p12
+          KEYCHAIN=$RUNNER_TEMP/app-signing.keychain-db
+          KCPASS=$(openssl rand -base64 32)
+          echo -n "$P12_BASE64" | base64 --decode -o $CERT
+          security create-keychain -p "$KCPASS" $KEYCHAIN
+          security default-keychain -s $KEYCHAIN
+          security set-keychain-settings -lut 21600 $KEYCHAIN
+          security unlock-keychain -p "$KCPASS" $KEYCHAIN
+          security import $CERT -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN
+          security list-keychain -d user -s $KEYCHAIN
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KCPASS" $KEYCHAIN 2>/dev/null || true
+          security find-identity -v -p codesigning $KEYCHAIN
+          echo "KEYCHAIN_PATH=$KEYCHAIN" >> $GITHUB_ENV
 
-      - name: Provisioning-Profile laden
-        if: ${{ inputs.publish == true }}
-        uses: apple-actions/download-provisioning-profiles@v3
-        with:
-          bundle-id: ${{ vars.IOS_BUNDLE_ID }}
-          profile-type: IOS_APP_STORE
-          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
-          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
-          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+      - name: Provisioning-Profil installieren
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          PP_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          PP=$RUNNER_TEMP/profile.mobileprovision
+          echo -n "$PP_BASE64" | base64 --decode -o $PP
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(/usr/bin/security cms -D -i $PP))
+          cp $PP ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+          echo "Profil installiert, UUID: $UUID"
 
       - name: Build & Archive (signiert) → .ipa
-        if: ${{ inputs.publish == true }}
-        run: >
-          dotnet publish "$PROJECT" -c "$CONFIG" -f "$TFM"
-          -p:RuntimeIdentifier=ios-arm64
-          -p:ApplicationId=${{ vars.IOS_BUNDLE_ID }}
-          -p:ApplicationTitle=WalkHop
-          -p:ArchiveOnBuild=true
-          -p:CodesignKey="Apple Distribution"
-          -p:CodesignProvision="${{ vars.IOS_PROFILE_NAME }}"
-          -o ./artifacts
-
-      - name: Zu TestFlight hochladen (App Store Connect API)
-        if: ${{ inputs.publish == true }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          IPA=$(find ./artifacts -name '*.ipa' | head -1)
-          echo "Lade hoch: $IPA"
-          mkdir -p ~/private_keys
-          echo "${{ secrets.APPSTORE_PRIVATE_KEY }}" > ~/private_keys/AuthKey_${{ secrets.APPSTORE_KEY_ID }}.p8
-          xcrun altool --upload-app -f "$IPA" -t ios \
-            --apiKey "${{ secrets.APPSTORE_KEY_ID }}" \
-            --apiIssuer "${{ secrets.APPSTORE_ISSUER_ID }}"
+          dotnet publish "$PROJECT" \
+            -f net10.0-ios -c Release \
+            -p:ArchiveOnBuild=true \
+            -p:RuntimeIdentifier=ios-arm64 \
+            -p:ApplicationId=${{ vars.IOS_BUNDLE_ID }} \
+            -p:ApplicationTitle=WalkHop \
+            -p:CodesignKey="${{ vars.IOS_SIGNING_IDENTITY }}"
 
-      - name: .ipa als Artefakt sichern
-        if: ${{ inputs.publish == true }}
+      - name: IPA als Artefakt sichern
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v4
         with:
-          name: walkhop-ios-ipa
-          path: ./artifacts/*.ipa
-          if-no-files-found: warn
+          name: walkhop-ios
+          path: '**/*.ipa'
+          if-no-files-found: error
+
+      - name: Zu TestFlight hochladen (App Store Connect API)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          IPA=$(find . -name "*.ipa" -type f | head -1)
+          [ -z "$IPA" ] && { echo "Keine .ipa gefunden!"; exit 1; }
+          echo "Lade hoch: $IPA"
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$PRIVATE_KEY" > ~/.appstoreconnect/private_keys/AuthKey_$KEY_ID.p8
+          xcrun altool --upload-app --type ios --file "$IPA" \
+            --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID" 2>&1 | tee /tmp/up.txt
+          grep -q "ERROR" /tmp/up.txt && { echo "::error::Upload fehlgeschlagen"; exit 1; }
+          echo "Upload erfolgreich!"
