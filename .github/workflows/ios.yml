@@ -26,9 +26,15 @@ env:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+
+      # .NET-iOS-Workload (26.5) verlangt Xcode 26.5 – passendes Xcode wählen.
+      - name: Xcode 26.5 wählen
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: .NET einrichten
         uses: actions/setup-dotnet@v4
