@@ -1,0 +1,97 @@
+name: iOS Build & TestFlight
+
+# Baut die WalkHop-MAUI-App auf einem echten macOS-Runner (iOS lässt sich NUR auf
+# macOS/Xcode bauen) und lädt sie auf Wunsch zu TestFlight/App Store Connect hoch.
+#
+# - Bei jedem Push auf main: nur BAUEN (unsigniert) → prüft, dass die Pipeline lebt.
+# - Manuell (Run workflow → publish=true): SIGNIEREN + zu TestFlight HOCHLADEN.
+#   Dafür müssen die unten genannten Secrets/Variablen im Repo gesetzt sein.
+
+on:
+  push:
+    branches: [main]
+    paths: ['SpinNaviApp/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Zu TestFlight hochladen (signiert)'
+        type: boolean
+        default: false
+
+env:
+  PROJECT: SpinNaviApp/SpinNaviApp.csproj
+  DOTNET_VERSION: '10.0.x'
+  CONFIG: Release
+  TFM: net10.0-ios
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: .NET einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: MAUI-iOS-Workload installieren
+        run: dotnet workload install maui-ios
+
+      # ---------- Variante A: nur bauen (kein Secret nötig) ----------
+      - name: Build (unsigniert) – nur Validierung
+        if: ${{ github.event_name == 'push' || inputs.publish != true }}
+        run: >
+          dotnet build "$PROJECT" -c "$CONFIG" -f "$TFM"
+          -p:RuntimeIdentifier=ios-arm64
+          -p:CodesignKey=
+          -p:CodesignProvision=
+
+      # ---------- Variante B: signieren + zu TestFlight hochladen ----------
+      - name: Signing-Zertifikat importieren
+        if: ${{ inputs.publish == true }}
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+
+      - name: Provisioning-Profile laden
+        if: ${{ inputs.publish == true }}
+        uses: apple-actions/download-provisioning-profiles@v3
+        with:
+          bundle-id: ${{ vars.IOS_BUNDLE_ID }}
+          profile-type: IOS_APP_STORE
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+      - name: Build & Archive (signiert) → .ipa
+        if: ${{ inputs.publish == true }}
+        run: >
+          dotnet publish "$PROJECT" -c "$CONFIG" -f "$TFM"
+          -p:RuntimeIdentifier=ios-arm64
+          -p:ApplicationId=${{ vars.IOS_BUNDLE_ID }}
+          -p:ApplicationTitle=WalkHop
+          -p:ArchiveOnBuild=true
+          -p:CodesignKey="Apple Distribution"
+          -p:CodesignProvision="${{ vars.IOS_PROFILE_NAME }}"
+          -o ./artifacts
+
+      - name: Zu TestFlight hochladen (App Store Connect API)
+        if: ${{ inputs.publish == true }}
+        run: |
+          IPA=$(find ./artifacts -name '*.ipa' | head -1)
+          echo "Lade hoch: $IPA"
+          mkdir -p ~/private_keys
+          echo "${{ secrets.APPSTORE_PRIVATE_KEY }}" > ~/private_keys/AuthKey_${{ secrets.APPSTORE_KEY_ID }}.p8
+          xcrun altool --upload-app -f "$IPA" -t ios \
+            --apiKey "${{ secrets.APPSTORE_KEY_ID }}" \
+            --apiIssuer "${{ secrets.APPSTORE_ISSUER_ID }}"
+
+      - name: .ipa als Artefakt sichern
+        if: ${{ inputs.publish == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: walkhop-ios-ipa
+          path: ./artifacts/*.ipa
+          if-no-files-found: warn
