@@ -35,8 +35,8 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: MAUI-iOS-Workload installieren
-        run: dotnet workload install maui-ios
+      - name: MAUI-Workloads installieren (android+ios – Projekt multi-targetet)
+        run: dotnet workload install maui
 
       # ---------- Variante A: nur bauen (kein Secret nötig) ----------
       - name: Build (unsigniert) – nur Validierung
