@@ -1,0 +1,20 @@
+# .NET / MAUI Build-Artefakte
+bin/
+obj/
+*.binlog
+*.user
+
+# Android-Pakete
+*.apk
+*.aab
+*.keystore
+
+# Portables JDK 17 (nur lokal, ~180 MB – wird vom Emulator-Setup-Skript geholt)
+tools/jdk17/
+
+# Emulator-Belegbilder (Screenshots aus Verifikationsläufen)
+emulator-*.png
+
+# Web-Test-Abhängigkeiten (per npm install)
+tests/web/node_modules/
+tests/web/package-lock.json

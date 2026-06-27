@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell
+    x:Class="SpinNaviApp.AppShell"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:local="clr-namespace:SpinNaviApp"
+    Title="Spin1More"
+    FlyoutBehavior="Flyout"
+    FlyoutBackgroundColor="#003153"
+    Shell.BackgroundColor="White"
+    Shell.TitleColor="#0f172a"
+    Shell.ForegroundColor="#0f172a"
+    Shell.FlyoutBackgroundColor="#003153">
+
+    <Shell.FlyoutHeaderTemplate>
+        <DataTemplate>
+            <Grid HeightRequest="120" BackgroundColor="#003153" Padding="20,0">
+                <VerticalStackLayout VerticalOptions="Center" Spacing="2">
+                    <Label Text="Spin1More" FontSize="24" FontAttributes="Bold" TextColor="White" />
+                    <Label Text="Berlin &amp; Brandenburg" FontSize="13" TextColor="#9fc3d8" />
+                </VerticalStackLayout>
+            </Grid>
+        </DataTemplate>
+    </Shell.FlyoutHeaderTemplate>
+
+    <FlyoutItem Title="Start" Route="start">
+        <ShellContent ContentTemplate="{DataTemplate local:UebersichtPage}" Route="StartPage" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Navigation" Route="navigation">
+        <ShellContent ContentTemplate="{DataTemplate local:MainPage}" Route="MainPage" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Konto" Route="konto">
+        <ShellContent ContentTemplate="{DataTemplate local:KontoPage}" Route="KontoPage" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Einstellungen" Route="einstellungen">
+        <ShellContent ContentTemplate="{DataTemplate local:EinstellungenPage}" Route="EinstellungenPage" />
+    </FlyoutItem>
+
+    <MenuItem Text="Beenden" Clicked="OnLogout" />
+
+</Shell>

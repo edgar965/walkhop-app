@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:mapsui="clr-namespace:Mapsui.UI.Maui;assembly=Mapsui.UI.Maui"
+             x:Class="SpinNaviApp.MainPage"
+             Shell.NavBarIsVisible="True"
+             Title="Navigation">
+
+    <Grid>
+        <!-- Native OSM-Karte (Mapsui) -->
+        <mapsui:MapControl x:Name="MapCtrl" />
+
+        <!-- Transiente Status-Pille (unten, nur bei Aktionen sichtbar) -->
+        <Border x:Name="StatusPille" IsVisible="False" HorizontalOptions="Center" VerticalOptions="End"
+                Margin="0,0,0,90" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White" Padding="12,6"
+                StrokeShape="RoundRectangle 999">
+            <Border.Shadow><Shadow Brush="Black" Opacity="0.15" Radius="8" Offset="0,3" /></Border.Shadow>
+            <Label x:Name="StatusLabel" FontSize="12" FontAttributes="Bold" TextColor="#475569" />
+        </Border>
+
+        <!-- Karten-Steuerung rechts (wie Django: Zentrieren-Toggle, Ton, Suche, Vollbild) -->
+        <VerticalStackLayout HorizontalOptions="End" VerticalOptions="Center" Spacing="12" Margin="0,0,9,0">
+
+            <!-- Zentrieren / Kompass-Toggle (Locate ⇄ Norden) -->
+            <Border x:Name="ZentrierenBorder" AutomationId="navi_zentrieren" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="#e2231a"
+                    WidthRequest="46" HeightRequest="46" StrokeShape="RoundRectangle 23">
+                <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="8" Offset="0,3" /></Border.Shadow>
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnZentrieren" /></Border.GestureRecognizers>
+                <Grid>
+                    <!-- Exakte Kopie der Django-Icons (karte_controls.js ICON_ORT/ICON_NORD) als SVG-Asset -->
+                    <Image x:Name="LocateIcon" Source="komp_locate.png" WidthRequest="26" HeightRequest="26"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Image x:Name="NordIcon" IsVisible="False" Source="komp_nord.png" WidthRequest="26" HeightRequest="26"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Grid>
+            </Border>
+
+            <!-- Ton (Lautsprecher) -->
+            <Border x:Name="TonBorder" AutomationId="navi_ton" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                    WidthRequest="46" HeightRequest="46" StrokeShape="RoundRectangle 23">
+                <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="8" Offset="0,3" /></Border.Shadow>
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnTon" /></Border.GestureRecognizers>
+                <AbsoluteLayout WidthRequest="24" HeightRequest="24" Scale="1.2"
+                                HorizontalOptions="Center" VerticalOptions="Center">
+                    <Path x:Name="TonKegel" AbsoluteLayout.LayoutBounds="0,0,24,24" Fill="#0f172a" Data="M3 9v6h4l5 4V5L7 9H3z" />
+                    <Path x:Name="TonWellen" IsVisible="False" AbsoluteLayout.LayoutBounds="0,0,24,24" Stroke="#0f172a"
+                          StrokeThickness="2.2" StrokeLineCap="Round" Data="M15.5 8.5a5 5 0 0 1 0 7M18.3 6a8.5 8.5 0 0 1 0 12" />
+                    <Path x:Name="TonAus" AbsoluteLayout.LayoutBounds="0,0,24,24" Stroke="#0f172a"
+                          StrokeThickness="2.2" StrokeLineCap="Round" Data="M16 9.5l5 5M21 9.5l-5 5" />
+                </AbsoluteLayout>
+            </Border>
+
+            <!-- Suche (POIs) – Lupen-SVG (einheitlich mit Kompass/Vollbild) -->
+            <Border x:Name="SucheBorder" AutomationId="navi_suche" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                    WidthRequest="46" HeightRequest="46" StrokeShape="RoundRectangle 23">
+                <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="8" Offset="0,3" /></Border.Shadow>
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnSuche" /></Border.GestureRecognizers>
+                <AbsoluteLayout WidthRequest="24" HeightRequest="24" Scale="1.1" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Ellipse AbsoluteLayout.LayoutBounds="3,3,13,13" Stroke="#0f172a" StrokeThickness="2.2" />
+                    <Path AbsoluteLayout.LayoutBounds="0,0,24,24" Stroke="#0f172a" StrokeThickness="2.6"
+                          StrokeLineCap="Round" Data="M15 15L21 21" />
+                </AbsoluteLayout>
+            </Border>
+
+            <!-- Vollbild -->
+            <Border x:Name="VollBorder" AutomationId="navi_vollbild" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                    WidthRequest="46" HeightRequest="46" StrokeShape="RoundRectangle 23">
+                <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="8" Offset="0,3" /></Border.Shadow>
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnVollbild" /></Border.GestureRecognizers>
+                <Grid WidthRequest="24" HeightRequest="24" Scale="1.15" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Path x:Name="VollAuf" Stroke="#0f172a" StrokeThickness="3" StrokeLineCap="Round"
+                          StrokeLineJoin="Round" Data="M4 20L20 4M14 4h6v6M10 20H4v-6" />
+                    <Path x:Name="VollZu" IsVisible="False" Stroke="White" StrokeThickness="3" StrokeLineCap="Round"
+                          StrokeLineJoin="Round" Data="M4 4l16 16M10 4H4v6M14 20h6v-6" />
+                </Grid>
+            </Border>
+
+            <!-- Zoom +/− (zuverlässig per Klick – Mausrad ist am Emulator unzuverlässig) -->
+            <Border x:Name="ZoomReinBorder" AutomationId="navi_zoom_rein" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                    WidthRequest="46" HeightRequest="46" StrokeShape="RoundRectangle 23">
+                <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="8" Offset="0,3" /></Border.Shadow>
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnZoomRein" /></Border.GestureRecognizers>
+                <Label Text="+" FontSize="28" FontAttributes="Bold" TextColor="#0f172a" HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+            <Border x:Name="ZoomRausBorder" AutomationId="navi_zoom_raus" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                    WidthRequest="46" HeightRequest="46" StrokeShape="RoundRectangle 23">
+                <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="8" Offset="0,3" /></Border.Shadow>
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnZoomRaus" /></Border.GestureRecognizers>
+                <Label Text="−" FontSize="30" FontAttributes="Bold" TextColor="#0f172a" HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+
+        </VerticalStackLayout>
+
+        <!-- Abbiege-Hinweis (oben links, grün – maps.me-Stil): NUR Pfeil + Distanz, kompakt -->
+        <Border x:Name="AnweisungBox" AutomationId="navi_anweisung" IsVisible="False" HorizontalOptions="Start" VerticalOptions="Start"
+                Margin="10,10,0,0" BackgroundColor="#16a34a" Padding="16,10" StrokeThickness="0"
+                StrokeShape="RoundRectangle 16">
+            <Border.Shadow><Shadow Brush="Black" Opacity="0.2" Radius="10" Offset="0,4" /></Border.Shadow>
+            <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
+                <Path x:Name="AbbiegePfeil" VerticalOptions="Center" Fill="White" Scale="1.2"
+                      WidthRequest="34" HeightRequest="34" Data="M12 3 20 13 14.5 13 14.5 21 9.5 21 9.5 13 4 13Z" />
+                <Label x:Name="DistNaechstLabel" TextColor="White" FontSize="24" FontAttributes="Bold"
+                       VerticalOptions="Center" LineBreakMode="NoWrap" />
+            </HorizontalStackLayout>
+        </Border>
+
+        <!-- Alternativroute-Chip -->
+        <Button x:Name="AltChip" IsVisible="False" Clicked="OnAltWaehlen" HorizontalOptions="Center"
+                VerticalOptions="Start" Margin="0,92,0,0" BackgroundColor="#475569" TextColor="White"
+                CornerRadius="20" Padding="14,4" FontSize="13" />
+
+        <!-- Routenplan-Chip (mehrere Wegpunkte) -->
+        <HorizontalStackLayout x:Name="PlanChip" IsVisible="False" HorizontalOptions="Center" VerticalOptions="Start"
+                               Margin="0,52,0,0" Spacing="6">
+            <Button x:Name="PlanLos" Clicked="OnPlanNavigieren" BackgroundColor="#0d9488" TextColor="White"
+                    CornerRadius="20" Padding="14,4" FontSize="13" />
+            <Button Text="✕" Clicked="OnPlanLeeren" BackgroundColor="#e2231a" TextColor="White"
+                    CornerRadius="20" Padding="12,4" FontSize="13" />
+        </HorizontalStackLayout>
+
+        <!-- Navi-Panel unten (maps.me-Stil): Griff zeigt Distanz zum Ziel · Restzeit · Ankunft;
+             aufklappbar mit Routendetails, Höhenprofil und „Navigation beenden". -->
+        <Border x:Name="NaviPanel" AutomationId="navi_panel" IsVisible="False" HorizontalOptions="Fill" VerticalOptions="End"
+                BackgroundColor="White" StrokeThickness="0" StrokeShape="RoundRectangle 20,20,0,0">
+            <Border.Shadow><Shadow Brush="Black" Opacity="0.2" Radius="16" Offset="0,-3" /></Border.Shadow>
+            <Grid RowDefinitions="Auto,*">
+                <!-- Griff-Balken: tippen klappt zu/auf, wischen zieht die Schublade -->
+                <Grid x:Name="NaviGriff" AutomationId="navi_panel_griff" Grid.Row="0" Padding="0,10,0,8">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnNaviPanel" />
+                        <PanGestureRecognizer PanUpdated="OnNaviPanelPan" />
+                    </Grid.GestureRecognizers>
+                    <BoxView WidthRequest="44" HeightRequest="5" CornerRadius="3" Color="#cbd5e1" HorizontalOptions="Center" />
+                </Grid>
+
+                <ScrollView Grid.Row="1">
+                    <VerticalStackLayout Padding="14,0,14,16" Spacing="12">
+
+                        <!-- ===== VORSCHAU (vor Start): Transport + Start/Ziel ===== -->
+                        <VerticalStackLayout x:Name="NaviVorschau" Spacing="12">
+                            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                                <Border x:Name="TabAuto" AutomationId="navi_tab_auto" Grid.Column="0" BackgroundColor="#f1f5f9" StrokeThickness="0" StrokeShape="RoundRectangle 12" Padding="6,10">
+                                    <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnVorschauProfil" CommandParameter="auto" /></Border.GestureRecognizers>
+                                    <Label Text="🚗" FontSize="22" HorizontalOptions="Center" />
+                                </Border>
+                                <Border x:Name="TabFuss" AutomationId="navi_tab_fuss" Grid.Column="1" BackgroundColor="#f1f5f9" StrokeThickness="0" Stroke="#0d9488" StrokeShape="RoundRectangle 12" Padding="6,10">
+                                    <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnVorschauProfil" CommandParameter="pedestrian" /></Border.GestureRecognizers>
+                                    <Label Text="🚶" FontSize="22" HorizontalOptions="Center" />
+                                </Border>
+                                <Border x:Name="TabRad" AutomationId="navi_tab_rad" Grid.Column="2" BackgroundColor="#f1f5f9" StrokeThickness="0" Stroke="#0d9488" StrokeShape="RoundRectangle 12" Padding="6,10">
+                                    <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnVorschauProfil" CommandParameter="bicycle" /></Border.GestureRecognizers>
+                                    <Label Text="🚲" FontSize="22" HorizontalOptions="Center" />
+                                </Border>
+                            </Grid>
+                            <Label x:Name="VorschauSummary" Text="–" FontSize="19" FontAttributes="Bold" TextColor="#0f172a" HorizontalOptions="Center" />
+                            <Border BackgroundColor="#f8fafc" StrokeThickness="0" StrokeShape="RoundRectangle 12" Padding="14,10">
+                                <VerticalStackLayout Spacing="0">
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                        <Path Grid.Column="0" VerticalOptions="Center" Fill="#16a34a" WidthRequest="18" HeightRequest="18"
+                                              Data="M12 2 C8 2 5 5 5 9 c0 5 7 13 7 13 s7-8 7-13 c0-4-3-7-7-7z" />
+                                        <Label Grid.Column="1" Text="Mein Standort" FontSize="15" TextColor="#0f172a" VerticalOptions="Center" />
+                                    </Grid>
+                                    <BoxView HeightRequest="1" Color="#e2e8f0" Margin="0,8" />
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                        <Path Grid.Column="0" VerticalOptions="Center" Fill="#e2231a" WidthRequest="18" HeightRequest="18"
+                                              Data="M6 2 v20 M6 3 h11 l-3 4 3 4 H6" />
+                                        <Label Grid.Column="1" x:Name="ZielLabel" Text="Ziel" FontSize="15" TextColor="#0f172a"
+                                               VerticalOptions="Center" LineBreakMode="TailTruncation" MaxLines="1" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <!-- ===== LAUF-Kopf (während Navigation): kompakt km · Min · Ankunft ===== -->
+                        <Grid x:Name="NaviLaufKopf" IsVisible="False" ColumnDefinitions="*,Auto">
+                            <HorizontalStackLayout Grid.Column="0" HorizontalOptions="Center" Spacing="10" VerticalOptions="Center">
+                                <Label x:Name="DistZielLabel" Text="–" FontSize="20" FontAttributes="Bold" TextColor="#0f172a" VerticalOptions="Center" />
+                                <Label Text="·" FontSize="16" TextColor="#cbd5e1" VerticalOptions="Center" />
+                                <Label x:Name="ZeitLabel" Text="–" FontSize="16" TextColor="#475569" VerticalOptions="Center" />
+                                <Label Text="·" FontSize="16" TextColor="#cbd5e1" VerticalOptions="Center" />
+                                <Label x:Name="AnkunftLabel" Text="–" FontSize="16" FontAttributes="Bold" TextColor="#0d9488" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                        </Grid>
+
+                        <!-- ===== Höhenprofil (beide Zustände) ===== -->
+                        <VerticalStackLayout x:Name="HoeheBlock" Spacing="4" IsVisible="False">
+                            <Label x:Name="HoeheInfo" Text="Höhenprofil" FontSize="12" FontAttributes="Bold" TextColor="#475569" />
+                            <GraphicsView x:Name="HoeheView" HeightRequest="80" />
+                        </VerticalStackLayout>
+                        <Label x:Name="NaviInfoLabel" FontSize="13" TextColor="#64748b" IsVisible="False"
+                               LineBreakMode="TailTruncation" MaxLines="2" />
+
+                        <!-- ===== Aktion: Start (Vorschau) / Stop (Lauf) ===== -->
+                        <Grid>
+                            <Button x:Name="StartBtn" AutomationId="navi_start" Text="Start" Clicked="OnStartNavigation"
+                                    BackgroundColor="#16a34a" TextColor="White" CornerRadius="12" FontAttributes="Bold" HeightRequest="48" />
+                            <Button x:Name="StopBtn" AutomationId="navi_stop" IsVisible="False" Text="Stop" Clicked="OnStop"
+                                    BackgroundColor="#e2231a" TextColor="White" CornerRadius="12" FontAttributes="Bold" HeightRequest="48" />
+                        </Grid>
+
+                        <!-- Tour-Aktionen (nur bei aktiver Tour) – aus dem entfernten Karten-Sheet hierher verschoben -->
+                        <VerticalStackLayout x:Name="TourAktionen" IsVisible="False" Spacing="8" Margin="0,4,0,0">
+                            <BoxView HeightRequest="1" Color="#e2e8f0" />
+                            <Label Text="TOUR" FontSize="12" FontAttributes="Bold" TextColor="#64748b" />
+                            <Button Text="🏁 Zum Startpunkt" Clicked="OnZumStart"
+                                    BackgroundColor="#c8a06a" TextColor="White" CornerRadius="10" />
+                            <Button Text="📍 Zum nächsten Punkt" Clicked="OnZumNaechsten"
+                                    BackgroundColor="#0d9488" TextColor="White" CornerRadius="10" />
+                            <Button x:Name="UmkehrBtn" Text="🔄 Route umkehren" Clicked="OnUmkehr"
+                                    BackgroundColor="#334155" TextColor="White" CornerRadius="10" />
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Grid>
+        </Border>
+
+    </Grid>
+</ContentPage>

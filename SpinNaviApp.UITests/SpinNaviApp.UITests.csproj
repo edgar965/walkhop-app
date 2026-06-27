@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>SpinNaviApp.UITests</RootNamespace>
+    <!-- Native UI-Tests laufen NUR auf Zuruf (brauchen Emulator + Appium-Server),
+         daher nicht in den normalen Test-Lauf der reinen Unit-Suite mischen. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="NUnit" Version="4.2.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+    <PackageReference Include="Appium.WebDriver" Version="5.2.0" />
+  </ItemGroup>
+
+</Project>

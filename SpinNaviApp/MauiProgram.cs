@@ -1,0 +1,44 @@
+﻿using Microsoft.Extensions.Logging;
+using SkiaSharp.Views.Maui.Controls.Hosting;
+#if ANDROID && DEBUG
+using Android.Webkit;
+#endif
+
+namespace SpinNaviApp;
+
+public static class MauiProgram
+{
+	public static MauiApp CreateMauiApp()
+	{
+		var builder = MauiApp.CreateBuilder();
+		builder
+			.UseMauiApp<App>()
+			.UseSkiaSharp()          // Mapsui rendert die native Karte über SkiaSharp
+			.ConfigureFonts(fonts =>
+			{
+				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+			});
+
+#if ANDROID && DEBUG
+		// Nur Debug: Der einzige WebView ist der Selbsttest (TestPage). Ihn so
+		// konfigurieren, dass die spin1more-Navigation darin läuft (JavaScript,
+		// DOM-Storage, Web-Geolocation). Im Release gibt es keinen WebView.
+		Microsoft.Maui.Handlers.WebViewHandler.Mapper.AppendToMapping("spin1more-webview", (handler, view) =>
+		{
+			var wv = handler.PlatformView;
+			wv.Settings.JavaScriptEnabled = true;
+			wv.Settings.DomStorageEnabled = true;
+			wv.Settings.SetGeolocationEnabled(true);
+			wv.Settings.MediaPlaybackRequiresUserGesture = false;
+			wv.SetWebChromeClient(new SpinWebChromeClient());
+		});
+#endif
+
+#if DEBUG
+		builder.Logging.AddDebug();
+#endif
+
+		return builder.Build();
+	}
+}

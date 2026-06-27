@@ -1,0 +1,14 @@
+{
+  "name": "spin1more-web-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Automatisierte Web-Test-Suite (Playwright) – nutzt die geteilten Cases aus ../testcases.js",
+  "scripts": {
+    "postinstall": "playwright install chromium",
+    "test": "node run-web.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

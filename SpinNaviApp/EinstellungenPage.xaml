@@ -1,0 +1,412 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="SpinNaviApp.EinstellungenPage"
+             Title="Einstellungen"
+             BackgroundColor="#f1f5f9">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <Style x:Key="Card" TargetType="Border">
+                <Setter Property="StrokeThickness" Value="0" />
+                <Setter Property="BackgroundColor" Value="White" />
+                <Setter Property="StrokeShape" Value="RoundRectangle 14" />
+                <Setter Property="Padding" Value="16" />
+            </Style>
+            <Style x:Key="Sec" TargetType="Label">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontAttributes" Value="Bold" />
+                <Setter Property="TextColor" Value="#94a3b8" />
+                <Setter Property="Margin" Value="4,8,0,0" />
+            </Style>
+            <Style x:Key="RowT" TargetType="Label">
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="TextColor" Value="#0f172a" />
+                <Setter Property="VerticalOptions" Value="Center" />
+            </Style>
+            <Style x:Key="RowS" TargetType="Label">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="TextColor" Value="#94a3b8" />
+            </Style>
+            <Style x:Key="Chev" TargetType="Label">
+                <Setter Property="Text" Value="›" />
+                <Setter Property="FontSize" Value="22" />
+                <Setter Property="TextColor" Value="#cbd5e1" />
+                <Setter Property="VerticalOptions" Value="Center" />
+            </Style>
+            <Style TargetType="Switch">
+                <Setter Property="OnColor" Value="#22c55e" />
+                <Setter Property="VerticalOptions" Value="Center" />
+            </Style>
+            <Style x:Key="Trenner" TargetType="BoxView">
+                <Setter Property="HeightRequest" Value="1" />
+                <Setter Property="Color" Value="#eef2f6" />
+            </Style>
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Tab-Leiste (Segmented) – nutzt das Standard-Template (Hamburger + Titel der Shell-NavBar) -->
+        <Border Grid.Row="0" Style="{StaticResource Card}" Margin="12,12,12,4" Padding="4"
+                BackgroundColor="#e2e8f0" StrokeShape="RoundRectangle 12">
+            <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="2">
+                <Border x:Name="SegAllg" Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTab" CommandParameter="allgemein" />
+                    </Border.GestureRecognizers>
+                    <Label x:Name="LblAllg" Text="Allgemein" FontSize="13" HorizontalOptions="Center"
+                           VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                </Border>
+                <Border x:Name="SegNavi" Grid.Column="1" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTab" CommandParameter="navigation" />
+                    </Border.GestureRecognizers>
+                    <Label x:Name="LblNavi" Text="Navigation" FontSize="13" HorizontalOptions="Center"
+                           VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                </Border>
+                <Border x:Name="SegKarte" Grid.Column="2" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTab" CommandParameter="karte" />
+                    </Border.GestureRecognizers>
+                    <Label x:Name="LblKarte" Text="Karte" FontSize="13" HorizontalOptions="Center"
+                           VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                </Border>
+                <Border x:Name="SegKonto" Grid.Column="3" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTab" CommandParameter="anmeldung" />
+                    </Border.GestureRecognizers>
+                    <Label x:Name="LblKonto" Text="Anmeldung" FontSize="13" HorizontalOptions="Center"
+                           VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <ScrollView Grid.Row="1">
+            <Grid Padding="12,8,12,16">
+
+                <!-- ================= Tab 1: Allgemein ================= -->
+                <VerticalStackLayout x:Name="TabAllgemein" Spacing="12">
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="0">
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="App-Sprache" Style="{StaticResource RowT}" />
+                                    <Label x:Name="SpracheWert" Style="{StaticResource RowS}" Text="Deutsch" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="1" Style="{StaticResource Chev}" />
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnSpracheWechseln" />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Einstellung der Einheiten" Style="{StaticResource RowT}" />
+                                    <Label x:Name="EinheitenWert" Style="{StaticResource RowS}" Text="Metrisch (km, m)" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="1" Style="{StaticResource Chev}" />
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnEinheitenWechseln" />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Bildschirm entsperren" Style="{StaticResource RowT}" />
+                                    <Label Text="Der Bildschirm wird bei Verwendung der Anwendung nicht gesperrt." Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="BildschirmSchalter" Toggled="OnBildschirm" />
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Kompakter Suchmodus" Style="{StaticResource RowT}" />
+                                    <Label Text="Ersetzt das Suchfeld durch das Suchsymbol." Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="KompaktSchalter" Toggled="OnKompakt" />
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Track automatisch aufzeichnen" Style="{StaticResource RowT}" />
+                                    <Label Text="Zeichnet die Strecke ab dem App-Start auf." Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="AufnahmeSchalter" Toggled="OnAutoAufnahme" />
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Fotos beim Start anzeigen" Style="{StaticResource RowT}" />
+                                    <Label Text="Foto-Ebene der Übersichtskarte direkt beim App-Start aktivieren (Standard: aus)." Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="FotosStartSchalter" Toggled="OnFotosStart" />
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <Label Grid.Column="0" Text="Fotos nur über WLAN hochladen" Style="{StaticResource RowT}" />
+                                <Switch Grid.Column="1" x:Name="FotosWlanSchalter" Toggled="OnFotosWlan" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+
+                <!-- ================= Tab 2: Navigation ================= -->
+                <VerticalStackLayout x:Name="TabNavigation" Spacing="12" IsVisible="False">
+                    <Label Text="FORTBEWEGUNG" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}" Padding="4" BackgroundColor="#e2e8f0" StrokeShape="RoundRectangle 12">
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="2">
+                            <Border x:Name="PfFuss" Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFortbewegung" CommandParameter="pedestrian" /></Border.GestureRecognizers>
+                                <Label x:Name="LblPfFuss" Text="🥾 Fuß" FontSize="13" HorizontalOptions="Center" />
+                            </Border>
+                            <Border x:Name="PfRad" Grid.Column="1" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFortbewegung" CommandParameter="bicycle" /></Border.GestureRecognizers>
+                                <Label x:Name="LblPfRad" Text="🚲 Rad" FontSize="13" HorizontalOptions="Center" />
+                            </Border>
+                            <Border x:Name="PfAuto" Grid.Column="2" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFortbewegung" CommandParameter="auto" /></Border.GestureRecognizers>
+                                <Label x:Name="LblPfAuto" Text="🚗 Auto" FontSize="13" HorizontalOptions="Center" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Label Text="WEGTYP (FUSS)" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}" Padding="4" BackgroundColor="#e2e8f0" StrokeShape="RoundRectangle 12">
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="2">
+                            <Border x:Name="WtFest" Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnWegtypEinst" CommandParameter="fest" /></Border.GestureRecognizers>
+                                <Label x:Name="LblWtFest" Text="Befestigt" FontSize="13" HorizontalOptions="Center" />
+                            </Border>
+                            <Border x:Name="WtNeutral" Grid.Column="1" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnWegtypEinst" CommandParameter="neutral" /></Border.GestureRecognizers>
+                                <Label x:Name="LblWtNeutral" Text="Neutral" FontSize="13" HorizontalOptions="Center" />
+                            </Border>
+                            <Border x:Name="WtNatur" Grid.Column="2" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnWegtypEinst" CommandParameter="natur" /></Border.GestureRecognizers>
+                                <Label x:Name="LblWtNatur" Text="Offroad" FontSize="13" HorizontalOptions="Center" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Label Text="ROUTENOPTIONEN" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="0">
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Autobahn vermeiden" Style="{StaticResource RowT}" />
+                                    <Label Text="Gilt für Auto-Routing." Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="AutobahnSchalter" Toggled="OnAutobahnEinst" />
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Unbefestigte Wege vermeiden" Style="{StaticResource RowT}" />
+                                    <Label Text="Gilt für Auto-Routing." Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="UnbefestigtSchalter" Toggled="OnUnbefestigtEinst" />
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Schlechte Oberflächen vermeiden" Style="{StaticResource RowT}" />
+                                    <Label Text="Gilt für Rad-Routing." Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="OberflaecheSchalter" Toggled="OnOberflaecheEinst" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Label Text="FARBMODUS" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}" Padding="4" BackgroundColor="#e2e8f0" StrokeShape="RoundRectangle 12">
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="2">
+                            <Border x:Name="FmAuto" Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFarbmodus" CommandParameter="auto" /></Border.GestureRecognizers>
+                                <Label x:Name="LblFmAuto" Text="Auto-Modus" FontSize="13" HorizontalOptions="Center" />
+                            </Border>
+                            <Border x:Name="FmTag" Grid.Column="1" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFarbmodus" CommandParameter="tag" /></Border.GestureRecognizers>
+                                <Label x:Name="LblFmTag" Text="Tagmodus" FontSize="13" HorizontalOptions="Center" />
+                            </Border>
+                            <Border x:Name="FmNacht" Grid.Column="2" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFarbmodus" CommandParameter="nacht" /></Border.GestureRecognizers>
+                                <Label x:Name="LblFmNacht" Text="Nachtmodus" FontSize="13" HorizontalOptions="Center" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Label Text="TON UND SPRACHE" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="0">
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <Label Grid.Column="0" Text="Sprachnavigation" Style="{StaticResource RowT}" />
+                                <Switch Grid.Column="1" x:Name="SprachnaviSchalter" Toggled="OnSprachnavi" />
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <VerticalStackLayout Spacing="6" Padding="0,12">
+                                <Label Text="Lautstärke der Anweisungen" Style="{StaticResource RowT}" />
+                                <Slider x:Name="LautstaerkeSlider" Minimum="0" Maximum="1"
+                                        MinimumTrackColor="#22c55e" ThumbColor="White"
+                                        ValueChanged="OnLautstaerke" />
+                            </VerticalStackLayout>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Benachrichtigungstöne abspielen" Style="{StaticResource RowT}" />
+                                    <Label Text="Höchstgeschwindigkeit, Neuberechnung der Route beim Verlassen." Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="BenachrichtigungSchalter" Toggled="OnBenachrichtigung" />
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Sprache der Navigation" Style="{StaticResource RowT}" />
+                                    <Label x:Name="NaviSpracheWert" Style="{StaticResource RowS}" Text="Deutsch" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="1" Style="{StaticResource Chev}" />
+                                <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnSpracheWechseln" /></Grid.GestureRecognizers>
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Bluetooth-Wiedergabe" Style="{StaticResource RowT}" />
+                                    <Label Text="Standard" Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="1" Style="{StaticResource Chev}" />
+                                <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnBluetooth" /></Grid.GestureRecognizers>
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Label Text="KARTENANSICHT" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}" Padding="4" BackgroundColor="#e2e8f0" StrokeShape="RoundRectangle 12">
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="2">
+                            <Border x:Name="KaGeneigt" Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnKartenansicht" CommandParameter="3d" /></Border.GestureRecognizers>
+                                <Label x:Name="LblKaGeneigt" Text="Geneigte Ansicht" FontSize="13" HorizontalOptions="Center" />
+                            </Border>
+                            <Border x:Name="Ka2d" Grid.Column="1" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnKartenansicht" CommandParameter="2d" /></Border.GestureRecognizers>
+                                <Label x:Name="LblKa2d" Text="2D-Ansicht" FontSize="13" HorizontalOptions="Center" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                </VerticalStackLayout>
+
+                <!-- ================= Tab 3: Karte ================= -->
+                <VerticalStackLayout x:Name="TabKarte" Spacing="12" IsVisible="False">
+                    <Label Text="KARTENMODUS" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}" Padding="4" BackgroundColor="#e2e8f0" StrokeShape="RoundRectangle 12">
+                        <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="2">
+                            <Border x:Name="KmWandern" Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnKartenmodus" CommandParameter="Wandern" /></Border.GestureRecognizers>
+                                <Label x:Name="LblKmWandern" Text="Wandern" FontSize="12" HorizontalOptions="Center" LineBreakMode="TailTruncation" />
+                            </Border>
+                            <Border x:Name="KmStandard" Grid.Column="1" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnKartenmodus" CommandParameter="Standard" /></Border.GestureRecognizers>
+                                <Label x:Name="LblKmStandard" Text="Standard" FontSize="12" HorizontalOptions="Center" LineBreakMode="TailTruncation" />
+                            </Border>
+                            <Border x:Name="KmSatellit" Grid.Column="2" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnKartenmodus" CommandParameter="Satellit" /></Border.GestureRecognizers>
+                                <Label x:Name="LblKmSatellit" Text="Satellit" FontSize="12" HorizontalOptions="Center" LineBreakMode="TailTruncation" />
+                            </Border>
+                            <Border x:Name="KmDunkel" Grid.Column="3" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,10">
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnKartenmodus" CommandParameter="Dunkel" /></Border.GestureRecognizers>
+                                <Label x:Name="LblKmDunkel" Text="Dunkel" FontSize="12" HorizontalOptions="Center" LineBreakMode="TailTruncation" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                            <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                <Label Text="Wander-/Radwege-Overlay" Style="{StaticResource RowT}" />
+                                <Label Text="Markierte Wander- und Radrouten einblenden." Style="{StaticResource RowS}" />
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1" x:Name="OverlaySchalter" Toggled="OnOverlay" />
+                        </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="0">
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Schattiertes Relief" Style="{StaticResource RowT}" />
+                                    <Label Text="Nur online verfügbar" Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="ReliefSchalter" Toggled="OnRelief" />
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Hangneigung" Style="{StaticResource RowT}" />
+                                    <Label Text="&gt;30°, 38°, 45° (nur online verfügbar)" Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="HangneigungSchalter" Toggled="OnHangneigung" />
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="Manuelle Kartendrehung" Style="{StaticResource RowT}" />
+                                    <Label Text="Karte kann manuell gedreht werden." Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="DrehungSchalter" Toggled="OnDrehung" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Label Text="OFFLINE-KARTEN" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="12">
+                            <Label x:Name="CacheLabel" Text="Zwischenspeicher: –" FontSize="13" TextColor="#64748b" />
+                            <Button Text="🗑 Offline-Cache leeren" Clicked="OnCacheLeeren"
+                                    BackgroundColor="#e2231a" TextColor="White" CornerRadius="10" />
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+
+                <!-- ================= Tab 4: Anmeldung / Premium ================= -->
+                <VerticalStackLayout x:Name="TabAnmeldung" Spacing="12" IsVisible="False">
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="4">
+                            <Label x:Name="StatusTitel" Text="Konto" FontSize="18" FontAttributes="Bold" TextColor="#0f172a" />
+                            <Label x:Name="StatusZeile" FontSize="13" TextColor="#64748b" />
+                            <Label x:Name="KontingentZeile" FontSize="13" TextColor="#64748b" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border x:Name="AuthCard" Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="10">
+                            <Label x:Name="AuthTitel" Text="Konto anlegen oder anmelden" FontSize="16" FontAttributes="Bold" TextColor="#0f172a" />
+                            <Entry x:Name="VornameFeld" Placeholder="Vorname" />
+                            <Entry x:Name="NameFeld" Placeholder="Name" />
+                            <Entry x:Name="EmailFeld" Placeholder="E-Mail" Keyboard="Email" />
+                            <Entry x:Name="PasswortFeld" Placeholder="Passwort" IsPassword="True" />
+                            <Label x:Name="FehlerLabel" TextColor="#e2231a" FontSize="13" IsVisible="False" />
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                <Button Grid.Column="0" Text="Anmelden" Clicked="OnLogin"
+                                        BackgroundColor="#0d9488" TextColor="White" CornerRadius="10" />
+                                <Button Grid.Column="1" Text="Registrieren" Clicked="OnRegister"
+                                        BackgroundColor="#003153" TextColor="White" CornerRadius="10" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Button x:Name="PremiumBtn" Text="⭐ Premium freischalten" Clicked="OnKaufen"
+                            BackgroundColor="#f59e0b" TextColor="White" CornerRadius="10" />
+                    <Button x:Name="AbmeldenBtn" Text="Abmelden" Clicked="OnAbmelden"
+                            BackgroundColor="#e2e8f0" TextColor="#0f172a" CornerRadius="10" IsVisible="False" />
+
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="Über" FontSize="16" FontAttributes="Bold" TextColor="#0f172a" />
+                            <Label x:Name="VersionLabel" FontSize="13" TextColor="#64748b" />
+                            <Label x:Name="ServerLabel" FontSize="13" TextColor="#64748b" />
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+
+            </Grid>
+        </ScrollView>
+    </Grid>
+</ContentPage>
