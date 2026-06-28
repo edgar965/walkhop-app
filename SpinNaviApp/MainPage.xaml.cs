@@ -64,6 +64,11 @@ public partial class MainPage : ContentPage
     private (double lat, double lon)? _letzteKursGeo;   // letzte Position für Kursberechnung aus Bewegung
     private double _letztEntlang;     // zuletzt projizierte Distanz entlang der Route (für Zoom-Redraw)
     private bool _folgen, _fahrtrichtung, _vollbild;
+    private volatile bool _userBeruehrt;   // Finger berührt die Karte → Kamera nicht programmatisch bewegen
+    private long _letzteBeruehrungMs;
+    private bool KameraFrei =>
+        !_userBeruehrt && Environment.TickCount64 - _letzteBeruehrungMs > 350
+        || Environment.TickCount64 - _letzteBeruehrungMs > 4000;   // Auto-Reset bei verpasstem TouchEnded
     private bool _zentrierenNaechsterFix = true;   // erster GPS-Fix (oder Zentrieren ohne Fix) → auf Position zoomen+ausrichten
     private long _letztViewportRedrawMs;           // Debounce für den Kegel-Redraw bei Zoom (gegen Ruckeln)
     private long _letztLangdruckMs;                // Zeitpunkt des letzten Karten-Langdrucks (entkoppelt Langdruck vom Tap)
@@ -145,6 +150,10 @@ public partial class MainPage : ContentPage
         // ignoriert. Bewusstes Drehen funktioniert weiter.
         MapCtrl.UnSnapRotationDegrees = 30;
         MapCtrl.ReSnapRotationDegrees = 8;
+        // Während der Finger die Karte berührt: keine programmatische Kamera-Bewegung (Folgen/Drehen),
+        // sonst kämpft die Live-Schleife gegen die Pinch-Geste → Zittern (maps.me pausiert das ebenso).
+        MapCtrl.TouchStarted += (s, e) => { _userBeruehrt = true; _letzteBeruehrungMs = Environment.TickCount64; };
+        MapCtrl.TouchEnded += (s, e) => { _userBeruehrt = false; _letzteBeruehrungMs = Environment.TickCount64; };
         _map.Info += AufKarteTipp;
         // Bei Zoom-Änderung den (pixelgroßen) Positions-Chevron neu zeichnen, damit er
         // gleich groß bleibt – sonst behält er die Größe vom letzten GPS-Takt.
@@ -205,7 +214,6 @@ public partial class MainPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        TourenLaden();   // Tour-Routen-Overlay einmalig laden (antippbar zum „Abwandern")
         // Einstellungen, die sich zwischenzeitlich (Einstellungs-Seite) geändert haben können,
         // beim Zurückkehren auf die Karte anwenden.
         try { DeviceDisplay.Current.KeepScreenOn = Einst.BildschirmWach; } catch (Exception ex) { Debug.WriteLine(ex); }
@@ -295,7 +303,7 @@ public partial class MainPage : ContentPage
         double res = _map.Navigator.Viewport.Resolution;
         if (res <= 0) return null;
         double mProPixel = res * Math.Cos(lat * Math.PI / 180);
-        double tol = mProPixel * 18;
+        double tol = mProPixel * 10;   // nur ~10 px Treffer („direkt auf der Route", nicht nur in der Nähe)
         TourInfo? best = null;
         double bestD = tol;
         foreach (var t in _touren)
@@ -462,9 +470,9 @@ public partial class MainPage : ContentPage
                 _map.Navigator.CenterOnAndZoomTo(_letztePos, Aufloesung(ZentrierZoom));
                 if (_fahrtrichtung) _map.Navigator.RotateTo(-kurs);
             }
-            else if (_folgen) _map.Navigator.CenterOn(_letztePos);
+            else if (_folgen && KameraFrei) _map.Navigator.CenterOn(_letztePos);
             // Kompass-Modus OHNE Kompass-Hardware: Karte in GPS-Fahrtrichtung drehen (greift nur bei Bewegung).
-            if (_fahrtrichtung && !_kompassHatWert) _map.Navigator.RotateTo(-_gpsKurs);
+            if (_fahrtrichtung && !_kompassHatWert && KameraFrei) _map.Navigator.RotateTo(-_gpsKurs);
             if (_navPunkte != null) AktualisiereNav(loc.Latitude, loc.Longitude);
         });
     }
@@ -492,7 +500,7 @@ public partial class MainPage : ContentPage
             // Chevron nur bei spürbarer Kurs-Änderung neu zeichnen (Redraw drosseln).
             if (Math.Abs(((_heading - _gezeichnetHeading + 540) % 360) - 180) > 3)
             { _gezeichnetHeading = _heading; PositionZeichnen(); }
-            if (_fahrtrichtung) _map.Navigator.RotateTo(-_heading);
+            if (_fahrtrichtung && KameraFrei) _map.Navigator.RotateTo(-_heading);   // nicht während Touch
         });
     }
 
@@ -509,18 +517,11 @@ public partial class MainPage : ContentPage
     // Kontextmenü „Was möchtest du tun?" – per kurzem Tipp (Map.Info) UND per Langdruck (Android) aufrufbar.
     private async Task KontextmenueZeigen(double lat, double lon)
     {
-        // Liegt der Punkt genau auf einer angezeigten Tour-Route? Dann „abwandern" anbieten.
-        var nah = NaechsteTourRoute(lat, lon);
-        var optionen = new List<string>();
-        if (nah != null) optionen.Add("🧭 GPS-Route abwandern");
-        optionen.Add("🥾 Hierhin navigieren");
-        optionen.Add("📍 Von hier starten");
-        optionen.Add("➕ Zum Plan hinzufügen");
+        var optionen = new List<string> { "🥾 Hierhin navigieren", "📍 Von hier starten", "➕ Zum Plan hinzufügen" };
         optionen.Add(Standort.EntfernungZeile(lat, lon, _letzteGeo));   // Info-Zeile vor „Abbrechen"
         // „Bereich offline laden" ist in Einstellungen → Karte umgezogen (dort als „Umgebung offline laden").
-        string wahl = await DisplayActionSheet("Was möchtest du tun?", "Abbrechen", null, optionen.ToArray());
-        if (wahl == "🧭 GPS-Route abwandern" && nah != null) await TourStarten(nah);
-        else if (wahl == "🥾 Hierhin navigieren") await RouteZu(lat, lon);
+        string wahl = await DisplayActionSheet(null, "Abbrechen", null, optionen.ToArray());
+        if (wahl == "🥾 Hierhin navigieren") await RouteZu(lat, lon);
         else if (wahl == "📍 Von hier starten")
         {
             _startUeberschreibung = (lat, lon);

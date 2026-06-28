@@ -59,6 +59,13 @@ public partial class UebersichtPage : ContentPage
     private bool _folgen, _fahrtrichtung;
     private bool _zentrierenNaechsterFix = true;   // erster GPS-Fix → auf Position zentrieren (Norden oben)
     private bool _gpsLaeuft, _kompassLaeuft, _positionsSchleifeLaeuft;
+    private volatile bool _userBeruehrt;   // Finger berührt gerade die Karte → Kamera nicht bewegen
+    private long _letzteBeruehrungMs;
+    /// <summary>Kamera darf programmatisch bewegt werden (kein aktiver Touch + kurze Nachlauf-Sperre;
+    /// Auto-Reset nach 4 s, falls ein TouchEnded verloren ging, damit das Folgen nicht hängen bleibt).</summary>
+    private bool KameraFrei =>
+        !_userBeruehrt && Environment.TickCount64 - _letzteBeruehrungMs > 350
+        || Environment.TickCount64 - _letzteBeruehrungMs > 4000;
     private int _beamBitmapId = -1;
     private int _fotoPinBitmapId = -1;
     // Zoom-Glättung: schwere Tour-/Foto-Vektoren während der Zoom-Geste ausblenden (nur Kacheln
@@ -95,6 +102,10 @@ public partial class UebersichtPage : ContentPage
         // maps.me-Stil: beim 2-Finger-Zoom nicht mitdrehen (erst ab bewusster 30°-Drehung).
         UeMap.UnSnapRotationDegrees = 30;
         UeMap.ReSnapRotationDegrees = 8;
+        // Solange der Finger die Karte berührt, KEINE programmatische Kamera-Bewegung (Folgen-
+        // Zentrieren/Kompass-Drehen). Sonst kämpft die Live-Schleife gegen die Pinch-Geste → Zittern.
+        UeMap.TouchStarted += (s, e) => { _userBeruehrt = true; _letzteBeruehrungMs = Environment.TickCount64; };
+        UeMap.TouchEnded += (s, e) => { _userBeruehrt = false; _letzteBeruehrungMs = Environment.TickCount64; };
         _map.Info += OnKarteTipp;
         _map.Navigator.ViewportChanged += (s, e) => BeiViewportAenderung();
         // Langdruck → Kontextmenü sofort (Mapsuis eingebautes LongTap; e.ScreenPosition ist Mapsui-Screen).
@@ -103,7 +114,11 @@ public partial class UebersichtPage : ContentPage
             _letztLangdruckMs = Environment.TickCount64;
             var welt = _map.Navigator.Viewport.ScreenToWorld(e.ScreenPosition.X, e.ScreenPosition.Y);
             var (lon, lat) = SphericalMercator.ToLonLat(welt.X, welt.Y);
-            MainThread.BeginInvokeOnMainThread(() => _ = KontextmenueZeigen(lat, lon));
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (NaechsteTourRoute(lat, lon) is { } tour) { DialogZeigen(tour); return; }
+                _ = KontextmenueZeigen(lat, lon);
+            });
         };
 
         _fotoAn = Einst.FotosBeimStart;   // Foto-Ebene beim Start nur, wenn in Einstellungen → Allgemein aktiviert (Standard: aus)
@@ -331,8 +346,10 @@ public partial class UebersichtPage : ContentPage
         if (wp == null) return;
         if (Environment.TickCount64 - _letztLangdruckMs < 700) return;   // Langdruck hat das Menü gerade gezeigt
         var (lon, lat) = SphericalMercator.ToLonLat(wp.X, wp.Y);
-        // Tipp genau auf einen Foto-Marker → das Foto zeigen (statt des Navigations-Menüs).
+        // Tipp genau auf einen Foto-Marker → das Foto zeigen.
         if (NaechstesFoto(lat, lon) is { } foto) { await FotoBetrachten(foto); return; }
+        // Tipp genau auf eine GPS-Route → Tour-Detail-Fenster (Karte, Daten, Sehenswürdigkeiten).
+        if (NaechsteTourRoute(lat, lon) is { } tour) { DialogZeigen(tour); return; }
         await KontextmenueZeigen(lat, lon);
     }
 
@@ -395,29 +412,19 @@ public partial class UebersichtPage : ContentPage
         await Navigation.PushModalAsync(seite);
     }
 
-    // Kontextmenü „Was möchtest du tun?" – per kurzem Tipp (Map.Info) UND per Langdruck (LongTap) aufrufbar.
+    // Kontextmenü (Punkt-Aktionen) – per kurzem Tipp UND Langdruck. Ein Tipp genau AUF eine
+    // GPS-Route öffnet hingegen das Tour-Detail-Fenster (siehe OnKarteTipp/LongTap), nicht dieses Menü.
     private async Task KontextmenueZeigen(double lat, double lon)
     {
-        // Liegt der Punkt nah an einer angezeigten GPS-Route? Dann diese direkt abnavigierbar machen.
-        var nah = NaechsteTourRoute(lat, lon);
-        var optionen = new List<string> { "🧭 Navigation zu", "🥾 Neue Wanderung ab hier" };
-        if (nah != null) optionen.Add("🧭 GPS-Route abwandern");
-        optionen.Add("📍 GPS-Position");
-        optionen.Add("📌 Marker setzen");
+        var optionen = new List<string> { "🧭 Navigation zu", "🥾 Neue Wanderung ab hier", "📌 Marker setzen" };
         optionen.Add(Standort.EntfernungZeile(lat, lon, _letzteGeo));   // Info-Zeile vor „Abbrechen"
-        string wahl = await DisplayActionSheet("Was möchtest du tun?", "Abbrechen", null, optionen.ToArray());
+        string wahl = await DisplayActionSheet(null, "Abbrechen", null, optionen.ToArray());
         if (wahl == "🧭 Navigation zu")
         {
             MainPage.GeplantesZiel = (lat, lon);
             await Shell.Current.GoToAsync("//navigation");
         }
         else if (wahl == "🥾 Neue Wanderung ab hier") await NeueWanderung(lat, lon);
-        else if (wahl == "🧭 GPS-Route abwandern" && nah != null)
-        {
-            MainPage.GeplanteTour = nah;   // MainPage startet die Tour beim Erscheinen
-            await Shell.Current.GoToAsync("//navigation");
-        }
-        else if (wahl == "📍 GPS-Position") OnStandort(this, EventArgs.Empty);
         else if (wahl == "📌 Marker setzen")
         {
             string name = await DisplayPromptAsync("Marker setzen", "Name des Markers:",
@@ -485,10 +492,9 @@ public partial class UebersichtPage : ContentPage
         double res = _map.Navigator.Viewport.Resolution;            // Mercator-Meter/Pixel
         if (res <= 0) return null;
         double mProPixel = res * Math.Cos(lat * Math.PI / 180);     // ≈ reale Meter/Pixel
-        // Trefferradius REIN pixelbasiert (~18 px Fingerkuppe) – KEIN Meter-Mindestwert. So zählt
-        // bei jedem Zoom nur, was wirklich direkt unter dem Finger liegt; weit entfernte Routen
-        // (auch wenn sie nah herangezoomt nur ein paar Meter daneben liegen) lösen NICHT mehr aus.
-        double tol = mProPixel * 18;
+        // Trefferradius REIN pixelbasiert (~10 px) – nur direkt AUF der Route, nicht „in der Nähe".
+        // Bei jedem Zoom gleich; weit entfernte Routen lösen nicht aus.
+        double tol = mProPixel * 10;
         TourInfo? best = null;
         double bestD = tol;
         foreach (var t in _gefiltert)
@@ -730,9 +736,9 @@ public partial class UebersichtPage : ContentPage
                 // die Zentrierung – darum kurz danach erneut zentrieren, damit der Standort gewinnt.
                 Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(900), Zentriere);
             }
-            else if (_folgen) _map.Navigator.CenterOn(_letztePos);
+            else if (_folgen && KameraFrei) _map.Navigator.CenterOn(_letztePos);
             // Kompass-Modus OHNE Kompass-Hardware: Karte in GPS-Fahrtrichtung drehen (greift nur bei Bewegung).
-            if (_fahrtrichtung && !_kompassHatWert) _map.Navigator.RotateTo(-_gpsKurs);
+            if (_fahrtrichtung && !_kompassHatWert && KameraFrei) _map.Navigator.RotateTo(-_gpsKurs);
         });
     }
 
@@ -758,7 +764,7 @@ public partial class UebersichtPage : ContentPage
             // Beam nur bei spürbarer Kurs-Änderung neu zeichnen (Redraw drosseln).
             if (Math.Abs(((_heading - _gezeichnetHeading + 540) % 360) - 180) > 3)
             { _gezeichnetHeading = _heading; PositionZeichnen(); }
-            if (_fahrtrichtung) _map.Navigator.RotateTo(-_heading);   // Kompass-Modus: Karte dreht mit
+            if (_fahrtrichtung && KameraFrei) _map.Navigator.RotateTo(-_heading);   // Kompass-Modus: dreht mit (nicht während Touch)
         });
     }
 
