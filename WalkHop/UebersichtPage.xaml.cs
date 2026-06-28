@@ -76,7 +76,6 @@ public partial class UebersichtPage : ContentPage
     private bool KameraFrei =>
         !_userBeruehrt && Environment.TickCount64 - _letzteBeruehrungMs > 350
         || Environment.TickCount64 - _letzteBeruehrungMs > 4000;
-    private int _beamBitmapId = -1;
     private int _fotoPinBitmapId = -1;
     // Zoom-Glättung: schwere Tour-/Foto-Vektoren während der Zoom-Geste ausblenden (nur Kacheln
     // bleiben sichtbar → flüssig), nach kurzer Ruhe wieder einblenden. Verhindert das Ruckeln.
@@ -172,8 +171,7 @@ public partial class UebersichtPage : ContentPage
     private void BeiViewportAenderung()
     {
         double res = _map.Navigator.Viewport.Resolution;
-        if (res <= 0) return;
-        if (_letzteZoomRes > 0 && Math.Abs(res - _letzteZoomRes) / _letzteZoomRes < 0.002) return;
+        if (!KarteHelfer.ZoomWesentlich(res, _letzteZoomRes)) return;
         _letzteZoomRes = res;
         if (!_vektorenVerborgen)
         {
@@ -354,7 +352,7 @@ public partial class UebersichtPage : ContentPage
                 mf.Styles.Add(new SymbolStyle
                 {
                     SymbolType = SymbolType.Ellipse, SymbolScale = 0.55,
-                    Fill = new Mapsui.Styles.Brush(Farbe(t.Farbe)),
+                    Fill = new Mapsui.Styles.Brush(KarteHelfer.Farbe(t.Farbe)),
                     Outline = new Pen(Mapsui.Styles.Color.White, 2),
                 });
                 features.Add(mf);
@@ -383,17 +381,11 @@ public partial class UebersichtPage : ContentPage
             var f = new GeometryFeature { Geometry = new LineString(coords) };
             f.Styles.Add(new VectorStyle
             {
-                Line = new Pen(Farbe(t.Farbe), quali ? 5 : 3) { PenStyle = PenStyle.Solid }
+                Line = new Pen(KarteHelfer.Farbe(t.Farbe), quali ? 5 : 3) { PenStyle = PenStyle.Solid }
             });
             features.Add(f);
         }
         return features;
-    }
-
-    private static Mapsui.Styles.Color Farbe(string hex)
-    {
-        try { return Mapsui.Styles.Color.FromString(hex); }
-        catch { return Mapsui.Styles.Color.FromString("#0d9488"); }
     }
 
     // ---- Karten-Tipp → nächste Tour öffnen -----------------------------------
@@ -535,7 +527,7 @@ public partial class UebersichtPage : ContentPage
                 if (y < miny) miny = y; if (y > maxy) maxy = y;
             }
             var f = new GeometryFeature { Geometry = new LineString(coords) };
-            f.Styles.Add(new VectorStyle { Line = new Pen(Farbe(w.Farbe), 5) { PenStyle = PenStyle.Solid } });
+            f.Styles.Add(new VectorStyle { Line = new Pen(KarteHelfer.Farbe(w.Farbe), 5) { PenStyle = PenStyle.Solid } });
             features.Add(f);
         }
         _genLayer.Features = features;
@@ -600,27 +592,11 @@ public partial class UebersichtPage : ContentPage
     // Nächstgelegene angezeigte Tour-Route zum Tipp-Punkt (null, wenn keine in Reichweite).
     // Abstand zum LINIENSEGMENT (nicht nur zu Stützpunkten) und Toleranz abhängig vom Zoom
     // (~22 px Tap-Radius), damit man die Linie auch herausgezoomt zuverlässig trifft.
+    // Trefferradius REIN pixelbasiert (~10 px) – nur direkt AUF der Route, nicht „in der Nähe".
+    // Bei jedem Zoom gleich; weit entfernte Routen lösen nicht aus. Logik gemeinsam mit der
+    // Navigations-Karte in KarteHelfer.NaechsteRoute (durchsucht hier die gefilterten Touren).
     private TourInfo? NaechsteTourRoute(double lat, double lon)
-    {
-        double res = _map.Navigator.Viewport.Resolution;            // Mercator-Meter/Pixel
-        if (res <= 0) return null;
-        double mProPixel = res * Math.Cos(lat * Math.PI / 180);     // ≈ reale Meter/Pixel
-        // Trefferradius REIN pixelbasiert (~10 px) – nur direkt AUF der Route, nicht „in der Nähe".
-        // Bei jedem Zoom gleich; weit entfernte Routen lösen nicht aus.
-        double tol = mProPixel * 10;
-        TourInfo? best = null;
-        double bestD = tol;
-        foreach (var t in _gefiltert)
-        {
-            if (t.Route.Count < 2) continue;
-            for (int i = 1; i < t.Route.Count; i++)
-            {
-                double d = NavGeo.DistanzZuSegment(lat, lon, t.Route[i - 1], t.Route[i]);
-                if (d < bestD) { bestD = d; best = t; }
-            }
-        }
-        return best;
-    }
+        => KarteHelfer.NaechsteRoute(_gefiltert, lat, lon, _map.Navigator.Viewport.Resolution, 10);
 
     private void MarkerSetzen(double lat, double lon, string name)
     {
@@ -1167,51 +1143,14 @@ public partial class UebersichtPage : ContentPage
         MainThread.BeginInvokeOnMainThread(() =>
         {
             // Beam nur bei spürbarer Kurs-Änderung neu zeichnen (Redraw drosseln).
-            if (Math.Abs(((_heading - _gezeichnetHeading + 540) % 360) - 180) > 3)
+            if (KarteHelfer.Winkeldifferenz(_heading, _gezeichnetHeading) > 3)
             { _gezeichnetHeading = _heading; PositionZeichnen(); }
             // RotateTo NUR bei spürbarer Kurs-Änderung (>1,5°) – sonst dreht jeder Sensor-Tick (~16 Hz)
             // die Karte und erzwingt einen Voll-Redraw (Akku/Jitter). Nicht während Touch.
             if (_fahrtrichtung && KameraFrei
-                && Math.Abs(((_heading - _gedrehtHeading + 540) % 360) - 180) > 1.5)
+                && KarteHelfer.Winkeldifferenz(_heading, _gedrehtHeading) > 1.5)
             { _gedrehtHeading = _heading; _map.Navigator.RotateTo(-_heading); }
         });
-    }
-
-    // Standort-Beam (Google-Stil): dunkelgrüner Punkt + breiter Trichter (radialer Alpha-Verlauf
-    // ab der Position, dunkelgrün → transparent, ohne Ring/Kontur). Einmalig gerendert, drehbar.
-    private int BeamBitmapId()
-    {
-        if (_beamBitmapId >= 0) return _beamBitmapId;
-        const int g = 240;
-        const float c = g / 2f;
-        const float radius = 104f;
-        const float halb = 39f * (float)(Math.PI / 180);
-        var dunkel = new SkiaSharp.SKColor(22, 101, 52);
-        using var bitmap = new SkiaSharp.SKBitmap(g, g);
-        using (var canvas = new SkiaSharp.SKCanvas(bitmap))
-        {
-            canvas.Clear(SkiaSharp.SKColors.Transparent);
-            using var shader = SkiaSharp.SKShader.CreateRadialGradient(
-                new SkiaSharp.SKPoint(c, c), radius,
-                new[] { dunkel.WithAlpha(210), dunkel.WithAlpha(0) },
-                new[] { 0f, 1f }, SkiaSharp.SKShaderTileMode.Clamp);
-            using var beam = new SkiaSharp.SKPaint { Shader = shader, IsAntialias = true, Style = SkiaSharp.SKPaintStyle.Fill };
-            using var pfad = new SkiaSharp.SKPath();
-            pfad.MoveTo(c, c);
-            for (int i = 0; i <= 28; i++)
-            {
-                float ang = -halb + 2 * halb * i / 28f;
-                pfad.LineTo(c + radius * (float)Math.Sin(ang), c - radius * (float)Math.Cos(ang));
-            }
-            pfad.Close();
-            canvas.DrawPath(pfad, beam);
-            using var fuell = new SkiaSharp.SKPaint { Color = dunkel, IsAntialias = true };
-            canvas.DrawCircle(c, c, 15f, fuell);
-        }
-        using var img = SkiaSharp.SKImage.FromBitmap(bitmap);
-        using var png = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
-        _beamBitmapId = Mapsui.Styles.BitmapRegistry.Instance.Register(new System.IO.MemoryStream(png.ToArray()), "uebersicht_beam");
-        return _beamBitmapId;
     }
 
     // Kamera-Pin für Foto-Marker: einmal mit SkiaSharp gezeichnet, dann für ALLE Fotos
@@ -1245,26 +1184,12 @@ public partial class UebersichtPage : ContentPage
         return _fotoPinBitmapId;
     }
 
+    // Standort-Beam + Zeichenlogik gemeinsam mit der Navigations-Karte in KarteHelfer.
     private void PositionZeichnen()
     {
-        if (_letztePos == null || _letzteGeo == null)
-        {
-            _posLayer.Features = new List<IFeature>();
-            _posLayer.DataHasChanged();
-            return;
-        }
+        var pos = (_letztePos != null && _letzteGeo != null) ? _letztePos : null;
         double kursGrad = _kompassHatWert ? _heading : _gpsKurs;
-        var f = new GeometryFeature { Geometry = new NetTopologySuite.Geometries.Point(_letztePos.X, _letztePos.Y) };
-        f.Styles.Add(new SymbolStyle
-        {
-            BitmapId = BeamBitmapId(),
-            SymbolScale = 0.5,
-            SymbolRotation = kursGrad,
-            RotateWithMap = true,
-            Fill = null, Outline = null,   // kein Standard-Ellipsen-Symbol (heller Ring) hinter der Bitmap
-        });
-        _posLayer.Features = new List<IFeature> { f };
-        _posLayer.DataHasChanged();
+        KarteHelfer.PositionBeamZeichnen(_posLayer, pos, kursGrad);
     }
 
     // ---- Chips ----------------------------------------------------------------
@@ -1604,31 +1529,7 @@ public partial class UebersichtPage : ContentPage
     // Mitglieder als beschriftete Marker zeichnen (mich selbst auslassen; frisch=orange, alt=grau).
     private void GruppeMarkerZeichnen(List<GruppenMitglied> mitglieder)
     {
-        string ich = GruppeLive.Anzeigename();
-        var feats = new List<IFeature>();
-        int andere = 0;
-        foreach (var m in mitglieder)
-        {
-            if (string.Equals(m.Name, ich, StringComparison.OrdinalIgnoreCase)) continue;
-            andere++;
-            var (x, y) = SphericalMercator.FromLonLat(m.Lng, m.Lat);
-            string farbe = m.AlterS < 90 ? "#f59e0b" : "#94a3b8";
-            var f = new GeometryFeature { Geometry = new NetTopologySuite.Geometries.Point(x, y) };
-            f.Styles.Add(new SymbolStyle
-            {
-                SymbolType = SymbolType.Ellipse, SymbolScale = 0.7,
-                Fill = new Mapsui.Styles.Brush(Mapsui.Styles.Color.FromString(farbe)),
-                Outline = new Pen(Mapsui.Styles.Color.White, 2),
-            });
-            f.Styles.Add(new LabelStyle
-            {
-                Text = m.Name, Offset = new Offset(0, 20), Font = new Mapsui.Styles.Font { Size = 12, Bold = true },
-                ForeColor = Mapsui.Styles.Color.FromString("#0f172a"),
-                BackColor = new Mapsui.Styles.Brush(Mapsui.Styles.Color.White),
-                Halo = new Pen(Mapsui.Styles.Color.White, 2),
-            });
-            feats.Add(f);
-        }
+        var (feats, andere) = KarteHelfer.GruppenMarker(mitglieder, GruppeLive.Anzeigename());
         _gruppeLayer.Features = feats;
         _gruppeLayer.DataHasChanged();
         _map.RefreshGraphics();

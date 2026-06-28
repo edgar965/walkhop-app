@@ -329,38 +329,18 @@ public partial class MainPage : ContentPage
             var (xe, ye) = SphericalMercator.FromLonLat(route[^1].lon, route[^1].lat);
             liste.Add(new Coordinate(xe, ye));
             var f = new GeometryFeature { Geometry = new LineString(liste.ToArray()) };
-            f.Styles.Add(new VectorStyle { Line = new Pen(FarbeTour(t.Farbe), 3) { PenStyle = PenStyle.Solid } });
+            f.Styles.Add(new VectorStyle { Line = new Pen(KarteHelfer.Farbe(t.Farbe), 3) { PenStyle = PenStyle.Solid } });
             features.Add(f);
         }
         return features;
     }
 
-    private static Mapsui.Styles.Color FarbeTour(string hex)
-    {
-        try { return Mapsui.Styles.Color.FromString(hex); }
-        catch { return Mapsui.Styles.Color.FromString("#0d9488"); }
-    }
-
-    // Nächstgelegene angezeigte Tour-Route zum Punkt (null, wenn keine in ~18 px Reichweite).
+    // Nächstgelegene angezeigte Tour-Route zum Punkt (null, wenn keine in ~10 px Reichweite).
+    // Trefferlogik gemeinsam mit der Übersichtskarte in KarteHelfer.NaechsteRoute.
     private TourInfo? NaechsteTourRoute(double lat, double lon)
     {
         if (_touren.Count == 0) return null;
-        double res = _map.Navigator.Viewport.Resolution;
-        if (res <= 0) return null;
-        double mProPixel = res * Math.Cos(lat * Math.PI / 180);
-        double tol = mProPixel * 10;   // nur ~10 px Treffer („direkt auf der Route", nicht nur in der Nähe)
-        TourInfo? best = null;
-        double bestD = tol;
-        foreach (var t in _touren)
-        {
-            if (t.Route.Count < 2) continue;
-            for (int i = 1; i < t.Route.Count; i++)
-            {
-                double d = NavGeo.DistanzZuSegment(lat, lon, t.Route[i - 1], t.Route[i]);
-                if (d < bestD) { bestD = d; best = t; }
-            }
-        }
-        return best;
+        return KarteHelfer.NaechsteRoute(_touren, lat, lon, _map.Navigator.Viewport.Resolution, 10);
     }
 
     private async Task TourStarten(TourInfo tour)
@@ -597,12 +577,12 @@ public partial class MainPage : ContentPage
         MainThread.BeginInvokeOnMainThread(() =>
         {
             // Chevron nur bei spürbarer Kurs-Änderung neu zeichnen (Redraw drosseln).
-            if (Math.Abs(((_heading - _gezeichnetHeading + 540) % 360) - 180) > 3)
+            if (KarteHelfer.Winkeldifferenz(_heading, _gezeichnetHeading) > 3)
             { _gezeichnetHeading = _heading; PositionZeichnen(); }
             // RotateTo NUR bei spürbarer Kurs-Änderung (>1,5°): sonst dreht jeder Sensor-Tick (~16 Hz) die
             // Karte und löst einen Voll-Redraw aus (Akku/Jitter). Nicht während Touch / nicht in der Vorschau.
             if (_fahrtrichtung && KameraFrei && !(_navPunkte != null && !_navAktiv)
-                && Math.Abs(((_heading - _gedrehtHeading + 540) % 360) - 180) > 1.5)
+                && KarteHelfer.Winkeldifferenz(_heading, _gedrehtHeading) > 1.5)
             { _gedrehtHeading = _heading; _map.Navigator.RotateTo(-_heading); }
         });
     }
@@ -1219,9 +1199,8 @@ public partial class MainPage : ContentPage
     private void ViewportGeaendert()
     {
         double res = _map.Navigator.Viewport.Resolution;
-        if (res <= 0) return;
         // Nur bei echtem ZOOM (Auflösungsänderung) eingreifen – Pan/Zentrieren (GPS-Folgen) ignorieren.
-        if (_letzteZoomRes > 0 && Math.Abs(res - _letzteZoomRes) / _letzteZoomRes < 0.002) return;
+        if (!KarteHelfer.ZoomWesentlich(res, _letzteZoomRes)) return;
         _letzteZoomRes = res;
         // Route + Richtungspfeil (volle Vektor-Geometrie) während der Geste ausblenden → kein Vektor-
         // Rendering pro Frame, nur die flüssigen Kacheln + der bildschirm-konstante Beam bleiben.
@@ -1275,71 +1254,14 @@ public partial class MainPage : ContentPage
         return pts;
     }
 
-    // Standort-Beam (Google-Stil) als EINMALIG gerenderte Grafik: glatter radialer Alpha-Verlauf
-    // (innen voll grün → außen transparent, OHNE Ringe/Linien/Kontur) + Standortpunkt. Wird als
-    // bildschirm-konstantes, drehbares Symbol verwendet → kein Zoom-Redraw, kein Banding.
-    private int _beamBitmapId = -1;
-
-    private int BeamBitmapId()
-    {
-        if (_beamBitmapId >= 0) return _beamBitmapId;
-        const int g = 240;                                   // Bitmapgröße (px); per SymbolScale verkleinert
-        const float c = g / 2f;                              // Mitte = Standortpunkt = Drehzentrum
-        const float radius = 104f;                           // Beam-Länge
-        const float halb = 39f * (float)(Math.PI / 180);     // halber Öffnungswinkel (50 % breiter als zuvor 26°)
-        var dunkel = new SkiaSharp.SKColor(22, 101, 52);     // Dunkelgrün (#166534): Punkt UND Trichter-Basis
-        using var bitmap = new SkiaSharp.SKBitmap(g, g);
-        using (var canvas = new SkiaSharp.SKCanvas(bitmap))
-        {
-            canvas.Clear(SkiaSharp.SKColors.Transparent);
-            // Trichter: Sektor nach oben, beginnt DIREKT an der Position (Verlauf ab 0, kein Loch),
-            // dunkelgrün an der Position → nach außen transparent. Kein weißer Ring.
-            using var shader = SkiaSharp.SKShader.CreateRadialGradient(
-                new SkiaSharp.SKPoint(c, c), radius,
-                new[] { dunkel.WithAlpha(210), dunkel.WithAlpha(0) },
-                new[] { 0f, 1f }, SkiaSharp.SKShaderTileMode.Clamp);
-            using var beam = new SkiaSharp.SKPaint { Shader = shader, IsAntialias = true, Style = SkiaSharp.SKPaintStyle.Fill };
-            using var pfad = new SkiaSharp.SKPath();
-            pfad.MoveTo(c, c);
-            for (int i = 0; i <= 28; i++)
-            {
-                float ang = -halb + 2 * halb * i / 28f;       // um die Aufwärtsachse (−y)
-                pfad.LineTo(c + radius * (float)Math.Sin(ang), c - radius * (float)Math.Cos(ang));
-            }
-            pfad.Close();
-            canvas.DrawPath(pfad, beam);
-            // Standortpunkt: nur dunkelgrün, KEIN weißer Ring.
-            using var fuell = new SkiaSharp.SKPaint { Color = dunkel, IsAntialias = true };
-            canvas.DrawCircle(c, c, 15f, fuell);
-        }
-        using var img = SkiaSharp.SKImage.FromBitmap(bitmap);
-        using var png = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
-        _beamBitmapId = Mapsui.Styles.BitmapRegistry.Instance.Register(new System.IO.MemoryStream(png.ToArray()), "positions_beam");
-        return _beamBitmapId;
-    }
-
     // Standortanzeige im Google-Maps-Stil: Standortpunkt + glatter Blickrichtungs-Beam (gerenderte
     // Bitmap mit Alpha-Verlauf). Bildschirm-konstant (kein Zoom-Redraw), dreht mit Kompass/GPS-Kurs.
+    // Beam-Grafik + Zeichenlogik liegen gemeinsam mit der Übersichtskarte in KarteHelfer.
     private void PositionZeichnen()
     {
-        if (_letztePos == null || _letzteGeo == null)
-        {
-            _positionLayer.Features = new List<IFeature>();
-            _positionLayer.DataHasChanged();
-            return;
-        }
+        var pos = (_letztePos != null && _letzteGeo != null) ? _letztePos : null;
         double kursGrad = _kompassHatWert ? _heading : _gpsKurs;   // Blickrichtung in Grad
-        var f = new GeometryFeature { Geometry = new NetTopologySuite.Geometries.Point(_letztePos.X, _letztePos.Y) };
-        f.Styles.Add(new SymbolStyle
-        {
-            BitmapId = BeamBitmapId(),
-            SymbolScale = 0.5,
-            SymbolRotation = kursGrad,    // dreht in Blickrichtung …
-            RotateWithMap = true,         // … und mit der Karte (Norden-/Fahrtrichtungs-Ansicht korrekt)
-            Fill = null, Outline = null,  // kein Standard-Ellipsen-Symbol (heller Ring) hinter der Bitmap
-        });
-        _positionLayer.Features = new List<IFeature> { f };
-        _positionLayer.DataHasChanged();
+        KarteHelfer.PositionBeamZeichnen(_positionLayer, pos, kursGrad);
     }
 
     // Breadcrumb-Spur („Brotkrumen") als dezente grau-blaue, dünne, halbtransparente Linie zeichnen
@@ -1791,31 +1713,7 @@ public partial class MainPage : ContentPage
     // (eigener Beam) auslassen. Badge zeigt die Zahl der sichtbaren Mitreisenden.
     private void GruppeZeichnen(List<GruppenMitglied> mitglieder)
     {
-        string ich = GruppenAnzeigename();
-        var feats = new List<IFeature>();
-        int andere = 0;
-        foreach (var m in mitglieder)
-        {
-            if (string.Equals(m.Name, ich, StringComparison.OrdinalIgnoreCase)) continue;   // mich nicht doppelt
-            andere++;
-            var (x, y) = ZuMercator(m.Lat, m.Lng);
-            string farbe = m.AlterS < 90 ? "#f59e0b" : "#94a3b8";   // frisch orange, veraltet grau
-            var f = new GeometryFeature { Geometry = new NetTopologySuite.Geometries.Point(x, y) };
-            f.Styles.Add(new SymbolStyle
-            {
-                SymbolType = SymbolType.Ellipse, SymbolScale = 0.7,
-                Fill = new Mapsui.Styles.Brush(Mapsui.Styles.Color.FromString(farbe)),
-                Outline = new Pen(Mapsui.Styles.Color.White, 2),
-            });
-            f.Styles.Add(new LabelStyle
-            {
-                Text = m.Name, Offset = new Offset(0, 20), Font = new Mapsui.Styles.Font { Size = 12, Bold = true },
-                ForeColor = Mapsui.Styles.Color.FromString("#0f172a"),
-                BackColor = new Mapsui.Styles.Brush(Mapsui.Styles.Color.White),
-                Halo = new Pen(Mapsui.Styles.Color.White, 2),
-            });
-            feats.Add(f);
-        }
+        var (feats, andere) = KarteHelfer.GruppenMarker(mitglieder, GruppenAnzeigename());
         _gruppeLayer.Features = feats;
         _gruppeLayer.DataHasChanged();
         _map.RefreshGraphics();
