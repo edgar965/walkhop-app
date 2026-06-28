@@ -396,18 +396,45 @@ public partial class EinstellungenPage : ContentPage
         StandardAufPositionBtn.IsEnabled = false;
         try
         {
+            // Berechtigung AKTIV anfordern (nicht still verschlucken): erst prüfen, bei Bedarf anfragen.
+            var status = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
+            if (status != PermissionStatus.Granted)
+                status = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
+            if (status != PermissionStatus.Granted)
+            {
+                await DisplayAlert(L.T("standardpunkt_titel"), L.T("standort_keine_berechtigung"), L.T("ok"));
+                return;
+            }
+
+            // Erst die zuletzt bekannte Position (sofort), sonst frischen Fix anfordern. Medium ist
+            // Netzwerk-/Fused-fähig (NICHT nur GPS) + längeres Timeout → liefert auch drinnen einen Wert.
             var loc = await Geolocation.GetLastKnownLocationAsync()
-                      ?? await Geolocation.GetLocationAsync(new GeolocationRequest(GeolocationAccuracy.Medium, TimeSpan.FromSeconds(8)));
+                      ?? await Geolocation.GetLocationAsync(new GeolocationRequest(GeolocationAccuracy.Medium, TimeSpan.FromSeconds(20)));
             if (loc != null)
             {
                 Einst.StandardLat = loc.Latitude;
                 Einst.StandardLng = loc.Longitude;
                 Einst.StandardName = "eigener Punkt";
                 StandardPunktAnzeigen();
+                await DisplayAlert(L.T("standardpunkt_titel"), L.T("standardpunkt_gesetzt"), L.T("ok"));
             }
             else await DisplayAlert(L.T("standardpunkt_titel"), L.T("standardpunkt_kein_standort"), L.T("ok"));
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (FeatureNotEnabledException ex)   // Ortungsdienste am Gerät ausgeschaltet
+        {
+            Debug.WriteLine(ex);
+            await DisplayAlert(L.T("standardpunkt_titel"), L.T("standort_gps_aus"), L.T("ok"));
+        }
+        catch (PermissionException ex)          // Berechtigung fehlt/verweigert
+        {
+            Debug.WriteLine(ex);
+            await DisplayAlert(L.T("standardpunkt_titel"), L.T("standort_keine_berechtigung"), L.T("ok"));
+        }
+        catch (Exception ex)                    // alles andere: Fehler NICHT mehr still schlucken
+        {
+            Debug.WriteLine(ex);
+            await DisplayAlert(L.T("standardpunkt_titel"), L.T("standort_fehler"), L.T("ok"));
+        }
         finally { StandardAufPositionBtn.IsEnabled = true; }
     }
 

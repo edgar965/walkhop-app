@@ -195,8 +195,9 @@ public partial class UebersichtPage
                 long start = Environment.TickCount64;
                 try
                 {
+                    // Medium (Fused-/Netzwerk-fähig) statt Best (GPS-only) → auch drinnen schnell ein Fix.
                     var loc = await Geolocation.Default.GetLocationAsync(
-                        new GeolocationRequest(GeolocationAccuracy.Best, TimeSpan.FromSeconds(10)));
+                        new GeolocationRequest(GeolocationAccuracy.Medium, TimeSpan.FromSeconds(10)));
                     if (loc != null) VerarbeitePosition(loc);
                 }
                 catch (Exception ex) { Debug.WriteLine(ex); }

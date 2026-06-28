@@ -151,6 +151,9 @@ public partial class MainPage
         if (_navPunkte == null || _navPunkte.Count < 2) return;
         _navAktiv = true;
         _navStartMs = Environment.TickCount64;   // Schonfrist: direkt nach Start/Reroute nicht sofort wieder umrouten
+        _zentrierenNaechsterFix = false;   // beim Start die per fitKamera gefittete GANZE Route NICHT durch
+                                           // Auto-Zoom auf die Position überschreiben (sonst nur ein Bruchteil sichtbar);
+                                           // der Nutzer kann mit „Zentrieren" jederzeit auf seine Position springen.
         _letztNotifText = "";
         _tonManoever = -1;
         _ = NaviNotif.BerechtigungAsync();   // Notification-Berechtigung fürs Watch-Spiegeln

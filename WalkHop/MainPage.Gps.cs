@@ -30,8 +30,10 @@ public partial class MainPage
         {
             Geolocation.Default.LocationChanged -= AufPosition;
             Geolocation.Default.LocationChanged += AufPosition;
+            // Medium statt Best: Best erzwingt faktisch GPS-only (drinnen lange kein Fix). Medium nutzt den
+            // Fused-/Netzwerk-Standort mit und liefert auch in Gebäuden zügig eine Position.
             await Geolocation.Default.StartListeningForegroundAsync(
-                new GeolocationListeningRequest(GeolocationAccuracy.Best, TimeSpan.FromSeconds(1)));
+                new GeolocationListeningRequest(GeolocationAccuracy.Medium, TimeSpan.FromSeconds(1)));
             _gpsLaeuft = true;
         }
         catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("st_gps_nicht_verfuegbar"), autoAus: true); }
@@ -77,8 +79,9 @@ public partial class MainPage
                 bool ok = false;
                 try
                 {
+                    // Medium (Fused-/Netzwerk-fähig) statt Best (GPS-only) → auch drinnen schnell ein Fix.
                     var loc = await Geolocation.Default.GetLocationAsync(
-                        new GeolocationRequest(GeolocationAccuracy.Best, TimeSpan.FromSeconds(10)));
+                        new GeolocationRequest(GeolocationAccuracy.Medium, TimeSpan.FromSeconds(10)));
                     GpsLog($"Live-Fix = {(loc == null ? "NULL (Timeout)" : $"{loc.Latitude:F5},{loc.Longitude:F5}")}");
                     if (loc != null) { VerarbeitePosition(loc); ok = true; }
                 }
