@@ -56,4 +56,36 @@ public static class OfflineKarte
         }
         return ok;   // tatsächlich gespeicherte Kacheln (nicht nur versuchte)
     }
+
+    // ---- Schätzung (für die Anzeige VOR dem Download) ----------------------
+    // Mittlere Kachelgröße (Bytes) zur groben Größen-Schätzung. OSM-Raster ~15–25 KB,
+    // OpenTopoMap schwerer – konservativ ~22 KB ansetzen.
+    public const long KachelBytesSchaetzung = 22 * 1024;
+
+    private static int XKachel(double lon, int z) =>
+        (int)Math.Floor((lon + 180.0) / 360.0 * (1L << z));
+
+    private static int YKachel(double lat, int z)
+    {
+        double r = lat * Math.PI / 180.0;
+        double y = (1 - Math.Log(Math.Tan(r) + 1.0 / Math.Cos(r)) / Math.PI) / 2.0 * (1L << z);
+        return (int)Math.Floor(y);
+    }
+
+    /// <summary>Anzahl OSM-Kacheln für eine Geo-bbox über die Zoomstufen minZoom..maxZoom
+    /// (für die Größen-Schätzung vor dem Laden). Bricht bei <paramref name="deckel"/> ab.</summary>
+    public static int KachelAnzahl(double minLon, double minLat, double maxLon, double maxLat,
+        int minZoom, int maxZoom, int deckel = int.MaxValue)
+    {
+        long summe = 0;
+        for (int z = minZoom; z <= maxZoom; z++)
+        {
+            int x0 = XKachel(minLon, z), x1 = XKachel(maxLon, z);
+            int y0 = YKachel(maxLat, z), y1 = YKachel(minLat, z);   // maxLat = oben (kleineres y)
+            long nx = Math.Max(0, x1 - x0 + 1), ny = Math.Max(0, y1 - y0 + 1);
+            summe += nx * ny;
+            if (summe >= deckel) return deckel;
+        }
+        return (int)Math.Min(summe, int.MaxValue);
+    }
 }

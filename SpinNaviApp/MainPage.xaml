@@ -63,6 +63,23 @@
                 </AbsoluteLayout>
             </Border>
 
+            <!-- Gruppe: eigene Live-Position mit der Gruppe teilen + Mitglieder als Marker sehen -->
+            <Border x:Name="GruppeBorder" AutomationId="navi_gruppe" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                    WidthRequest="46" HeightRequest="46" StrokeShape="RoundRectangle 23">
+                <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="8" Offset="0,3" /></Border.Shadow>
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnGruppe" /></Border.GestureRecognizers>
+                <Grid HorizontalOptions="Center" VerticalOptions="Center">
+                    <Label x:Name="GruppeIcon" Text="👥" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
+                    <!-- kleine Zahl = Anzahl Mitglieder (nur wenn aktiv) -->
+                    <Border x:Name="GruppeBadge" IsVisible="False" BackgroundColor="#16a34a" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 9" WidthRequest="18" HeightRequest="18"
+                            HorizontalOptions="End" VerticalOptions="Start" TranslationX="6" TranslationY="-6">
+                        <Label x:Name="GruppeBadgeText" Text="" FontSize="10" FontAttributes="Bold" TextColor="White"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                </Grid>
+            </Border>
+
             <!-- Vollbild -->
             <Border x:Name="VollBorder" AutomationId="navi_vollbild" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
                     WidthRequest="46" HeightRequest="46" StrokeShape="RoundRectangle 23">
@@ -137,21 +154,31 @@
                 <ScrollView Grid.Row="1">
                     <VerticalStackLayout Padding="14,0,14,16" Spacing="12">
 
-                        <!-- ===== VORSCHAU (vor Start): Transport + Start/Ziel ===== -->
+                        <!-- ===== VORSCHAU (vor Start): Transport + kleiner Start + Start/Ziel ===== -->
                         <VerticalStackLayout x:Name="NaviVorschau" Spacing="12">
-                            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                                <Border x:Name="TabAuto" AutomationId="navi_tab_auto" Grid.Column="0" BackgroundColor="#f1f5f9" StrokeThickness="0" StrokeShape="RoundRectangle 12" Padding="6,10">
+                            <!-- Transport-Icons + kleiner grüner Start-Knopf in EINER Zeile: diese Zeile liegt
+                                 ganz oben im Panel und bleibt darum im eingeklappten Peek sichtbar – die
+                                 Navigation lässt sich starten, ohne die Schublade aufzuklappen. -->
+                            <Grid ColumnDefinitions="*,*,*,Auto,Auto" ColumnSpacing="7">
+                                <Border x:Name="TabAuto" AutomationId="navi_tab_auto" Grid.Column="0" BackgroundColor="#f1f5f9" StrokeThickness="0" StrokeShape="RoundRectangle 12" Padding="4,10">
                                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnVorschauProfil" CommandParameter="auto" /></Border.GestureRecognizers>
                                     <Label Text="🚗" FontSize="22" HorizontalOptions="Center" />
                                 </Border>
-                                <Border x:Name="TabFuss" AutomationId="navi_tab_fuss" Grid.Column="1" BackgroundColor="#f1f5f9" StrokeThickness="0" Stroke="#0d9488" StrokeShape="RoundRectangle 12" Padding="6,10">
+                                <Border x:Name="TabFuss" AutomationId="navi_tab_fuss" Grid.Column="1" BackgroundColor="#f1f5f9" StrokeThickness="0" Stroke="#0d9488" StrokeShape="RoundRectangle 12" Padding="4,10">
                                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnVorschauProfil" CommandParameter="pedestrian" /></Border.GestureRecognizers>
                                     <Label Text="🚶" FontSize="22" HorizontalOptions="Center" />
                                 </Border>
-                                <Border x:Name="TabRad" AutomationId="navi_tab_rad" Grid.Column="2" BackgroundColor="#f1f5f9" StrokeThickness="0" Stroke="#0d9488" StrokeShape="RoundRectangle 12" Padding="6,10">
+                                <Border x:Name="TabRad" AutomationId="navi_tab_rad" Grid.Column="2" BackgroundColor="#f1f5f9" StrokeThickness="0" Stroke="#0d9488" StrokeShape="RoundRectangle 12" Padding="4,10">
                                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnVorschauProfil" CommandParameter="bicycle" /></Border.GestureRecognizers>
                                     <Label Text="🚲" FontSize="22" HorizontalOptions="Center" />
                                 </Border>
+                                <!-- Kleiner Start + kleiner Zurück direkt neben den Transport-Icons (beide im Peek sichtbar). -->
+                                <Button x:Name="StartBtn" AutomationId="navi_start" Grid.Column="3" Text="{loc:Translate mp_start}" Clicked="OnStartNavigation"
+                                        BackgroundColor="#16a34a" TextColor="White" CornerRadius="12" FontAttributes="Bold" FontSize="14"
+                                        Padding="14,0" VerticalOptions="Fill" />
+                                <Button x:Name="ZurueckBtn" AutomationId="navi_zurueck" Grid.Column="4" Text="{loc:Translate mp_zurueck}" Clicked="OnZurueck"
+                                        BackgroundColor="#f1f5f9" TextColor="#475569" CornerRadius="12" FontAttributes="Bold" FontSize="14"
+                                        Padding="12,0" VerticalOptions="Fill" />
                             </Grid>
                             <Label x:Name="VorschauSummary" Text="–" FontSize="19" FontAttributes="Bold" TextColor="#0f172a" HorizontalOptions="Center" />
                             <Border BackgroundColor="#f8fafc" StrokeThickness="0" StrokeShape="RoundRectangle 12" Padding="14,10">
@@ -198,17 +225,8 @@
                         <Label x:Name="NaviInfoLabel" FontSize="13" TextColor="#64748b" IsVisible="False"
                                LineBreakMode="TailTruncation" MaxLines="2" />
 
-                        <!-- ===== Aktion: Start (Vorschau) / Stop (Lauf) ===== -->
-                        <Grid>
-                            <Button x:Name="StartBtn" AutomationId="navi_start" Text="{loc:Translate mp_start}" Clicked="OnStartNavigation"
-                                    BackgroundColor="#16a34a" TextColor="White" CornerRadius="12" FontAttributes="Bold" HeightRequest="48" />
-                            <Button x:Name="StopBtn" AutomationId="navi_stop" IsVisible="False" Text="{loc:Translate mp_stop}" Clicked="OnStop"
-                                    BackgroundColor="#e2231a" TextColor="White" CornerRadius="12" FontAttributes="Bold" HeightRequest="48" />
-                        </Grid>
-
-                        <!-- Zurück zur Start-Seite: nur in der Vorschau (vor Start / nach Stop), nicht während aktiver Navigation. -->
-                        <Button x:Name="ZurueckBtn" AutomationId="navi_zurueck" IsVisible="False" Text="{loc:Translate mp_zurueck}" Clicked="OnZurueck"
-                                BackgroundColor="#f1f5f9" TextColor="#475569" CornerRadius="12" FontAttributes="Bold" HeightRequest="48" />
+                        <!-- Start- UND Zurück-Knopf sitzen jetzt klein oben in der Transport-Zeile (im Peek sichtbar);
+                             der Stop-Knopf liegt im Lauf-Kopf (StopBtnPeek). Hier daher keine großen Knöpfe mehr. -->
 
                         <!-- Tour-Aktionen (nur bei aktiver Tour) – aus dem entfernten Karten-Sheet hierher verschoben -->
                         <VerticalStackLayout x:Name="TourAktionen" IsVisible="False" Spacing="8" Margin="0,4,0,0">

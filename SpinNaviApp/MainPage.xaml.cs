@@ -49,6 +49,11 @@ public partial class MainPage : ContentPage
     private MemoryLayer _breadcrumbLayer = null!; // dezente „Brotkrumen"-Spur des zurückgelegten Weges (unter der Route)
     private readonly List<(double lat, double lon)> _breadcrumb = new();   // gesammelte GPS-Spur
     private readonly object _breadcrumbLock = new();
+    // Gruppen-Position: eigene Live-Position teilen + Mitglieder als Marker zeigen (Code-basiert).
+    private MemoryLayer _gruppeLayer = null!;
+    private string _gruppeCode = "";              // aktiver Gruppen-Code (leer = nicht in einer Gruppe)
+    private long _letztGruppeSendeMs = -100000;   // letzte gesendete eigene Position (Drosselung)
+    private IDispatcherTimer? _gruppeTimer;       // pollt die Mitglieder-Positionen
     private double _gezeichnetHeading = -999;     // zuletzt gezeichnete Blickrichtung (Redraw-Drosselung)
     private double _letzteRes = -1;               // zuletzt gezeichnete Auflösung (Chevron-Größen-Redraw)
     private TileLayer _basisLayer = null!;
@@ -125,13 +130,16 @@ public partial class MainPage : ContentPage
         _fahrtrichtung = true;   // Karte beim Start in Blickrichtung ausrichten (course-up); Kompass-Knopf schaltet auf Norden um
 
         _map = new Mapsui.Map();
-        _aktiveQuelle = MapQuellen.Quelle(Einst.Karte);
+        // Effektiver Basiskarten-Modus = Nutzer-Kartenwahl, ggf. vom Farbmodus (Nacht/Auto) auf Dunkel
+        // umgebogen. So startet die Navigations-Karte gleich im richtigen Tag-/Nacht-Stil.
+        var startModus = EffektiverKartenmodus();
+        _aktiveQuelle = MapQuellen.Quelle(startModus);
         _basisLayer = new TileLayer(_aktiveQuelle) { Name = "Basis" };
         _map.Layers.Add(_basisLayer);
         _wanderLayer = new TileLayer(MapQuellen.Wanderwege(Einst.Profil == "bicycle"))
         { Name = "Wanderwege", Enabled = Einst.Wanderwege };
         _map.Layers.Add(_wanderLayer);
-        _modusJetzt = Einst.Karte; _profilJetzt = Einst.Profil;   // Ausgangszustand für den Einstellungs-Abgleich
+        _modusJetzt = startModus; _profilJetzt = Einst.Profil;   // Ausgangszustand für den Einstellungs-Abgleich
         // Tour-Routen-Overlay (unter der aktiven Route): dezent, antippbar zum „Abwandern".
         _tourLayer = new MemoryLayer("Touren");
         _map.Layers.Add(_tourLayer);
@@ -144,6 +152,10 @@ public partial class MainPage : ContentPage
         // Lila Richtungspfeil: liegt ÜBER der (blauen) Route, aber UNTER dem Positionsmarker.
         _richtungLayer = new MemoryLayer("Richtung");
         _map.Layers.Add(_richtungLayer);
+        // Gruppen-Mitglieder (Live-Marker): über der Route/dem Richtungspfeil, aber UNTER dem
+        // eigenen Positions-Beam. Style = null: jedes Feature bringt seinen eigenen Style mit.
+        _gruppeLayer = new MemoryLayer("Gruppe") { Style = null };
+        _map.Layers.Add(_gruppeLayer);
         // Positionsmarker als dezenter grüner Chevron (maps.me-Stil), oben auf allen Ebenen:
         // zeigt über den Kompass die Blickrichtung („wohin ich schaue").
         // Style = null: kein Layer-Default-Symbol (sonst grau/weißer Kreis hinter dem Punkt-Feature).
@@ -173,6 +185,8 @@ public partial class MainPage : ContentPage
 
         KompassIconAktualisieren();
         TonIconAktualisieren();
+        _gruppeCode = Einst.GruppenCode;   // ggf. zuletzt beigetretene Gruppe fortsetzen
+        GruppeIconAktualisieren();
         HoeheView.Drawable = _hoehe;
         // Code-gesetzte Platzhalter mehrsprachig vorbelegen (kein Translate-Binding, da sie zur
         // Laufzeit mit Routeninfo überschrieben werden).
@@ -252,6 +266,7 @@ public partial class MainPage : ContentPage
         }
         await GpsStart();
         KompassStart();
+        if (_gruppeCode.Length > 0) GruppeStart();   // Gruppen-Polling fortsetzen, falls beigetreten
 
         // Track-Aufnahme automatisch starten (Default), wenn in den Einstellungen aktiviert.
         if (Einst.AutoAufnahme && !_aufnahme && !_autoAufnahmeProbiert)
@@ -351,7 +366,7 @@ public partial class MainPage : ContentPage
         // Echte Abbiege-Manöver entlang der GPX-Route per Map-Matching (trace.json).
         string costing = tour.Facetten.Contains("radtour") ? "bicycle" : "pedestrian";
         RouteErgebnis? erg = null;
-        try { erg = await RouteService.TraceAsync(tour.Route, costing, Einst.Locale); }
+        try { erg = await RouteService.TraceAsync(tour.Route, costing, Einst.NaviLocale); }
         catch (Exception ex) { Debug.WriteLine(ex); }
         var punkte = erg != null && erg.Punkte.Count >= 2 ? erg.Punkte : tour.Route;
         var man = erg?.Manoever ?? new List<Manoever>();
@@ -368,6 +383,7 @@ public partial class MainPage : ContentPage
     {
         base.OnDisappearing();
         SensorenStoppen();   // Lifecycle-Gegenstück zu OnAppearing: Akku/Leaks vermeiden
+        GruppeStop();        // Gruppen-Polling pausieren (Code bleibt erhalten)
     }
 
     /// <summary>Beendet eine laufende Navigation + stoppt Sensoren (für Logout).</summary>
@@ -477,6 +493,12 @@ public partial class MainPage : ContentPage
         }
         else _letzteKursGeo = (loc.Latitude, loc.Longitude);
         _letzteGeo = (loc.Latitude, loc.Longitude);
+        // Gruppen-Sharing: eigene Position (gedrosselt ~6 s) in die Gruppe schreiben (fire-and-forget).
+        if (_gruppeCode.Length > 0 && Environment.TickCount64 - _letztGruppeSendeMs > 6000)
+        {
+            _letztGruppeSendeMs = Environment.TickCount64;
+            _ = GruppeService.SendePositionAsync(_gruppeCode, GruppenAnzeigename(), loc.Latitude, loc.Longitude);
+        }
         if (_aufnahme) lock (_trackLock) _track.Add((loc.Latitude, loc.Longitude));
         var (x, y) = ZuMercator(loc.Latitude, loc.Longitude);
         _letztePos = new MPoint(x, y);
@@ -497,16 +519,19 @@ public partial class MainPage : ContentPage
             PositionZeichnen();
             if (breadcrumbNeu) BreadcrumbZeichnen();
             double kurs = _kompassHatWert ? _heading : _gpsKurs;   // ohne Kompass-HW (N55): GPS-Fahrtrichtung
-            if (_zentrierenNaechsterFix)
+            // Route-VORSCHAU (Route liegt, aber Navigation noch nicht gestartet): die ganze Route bleibt
+            // gefittet stehen – NICHT auf die Position folgen/zoomen/drehen (sonst rückt das Ziel aus dem Bild).
+            bool inVorschau = _navPunkte != null && !_navAktiv;
+            if (_zentrierenNaechsterFix && !inVorschau)
             {
                 // Erster Fix (oder „Zentrieren" ohne vorherigen Fix): auf die Position zoomen und ausrichten.
                 _zentrierenNaechsterFix = false;
                 _map.Navigator.CenterOnAndZoomTo(_letztePos, Aufloesung(ZentrierZoom));
                 if (_fahrtrichtung) _map.Navigator.RotateTo(-kurs);
             }
-            else if (_folgen && KameraFrei) _map.Navigator.CenterOn(_letztePos);
+            else if (_folgen && KameraFrei && !inVorschau) _map.Navigator.CenterOn(_letztePos);
             // Kompass-Modus OHNE Kompass-Hardware: Karte in GPS-Fahrtrichtung drehen (greift nur bei Bewegung).
-            if (_fahrtrichtung && !_kompassHatWert && KameraFrei) _map.Navigator.RotateTo(-_gpsKurs);
+            if (_fahrtrichtung && !_kompassHatWert && KameraFrei && !inVorschau) _map.Navigator.RotateTo(-_gpsKurs);
             if (_navPunkte != null) AktualisiereNav(loc.Latitude, loc.Longitude);
         });
     }
@@ -534,7 +559,8 @@ public partial class MainPage : ContentPage
             // Chevron nur bei spürbarer Kurs-Änderung neu zeichnen (Redraw drosseln).
             if (Math.Abs(((_heading - _gezeichnetHeading + 540) % 360) - 180) > 3)
             { _gezeichnetHeading = _heading; PositionZeichnen(); }
-            if (_fahrtrichtung && KameraFrei) _map.Navigator.RotateTo(-_heading);   // nicht während Touch
+            // nicht während Touch UND nicht in der Route-Vorschau (sonst dreht sich die Übersicht weg)
+            if (_fahrtrichtung && KameraFrei && !(_navPunkte != null && !_navAktiv)) _map.Navigator.RotateTo(-_heading);
         });
     }
 
@@ -592,7 +618,7 @@ public partial class MainPage : ContentPage
             var opt = RouteService.CostingOptionen(Einst.Profil, Einst.Wegtyp,
                 Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche);
             var (r, alt) = await RouteService.RouteVollAsync(start.Value.lat, start.Value.lon, zielLat, zielLon,
-                Einst.Profil, opt, Einst.Locale, 2);
+                Einst.Profil, opt, Einst.NaviLocale, 2);
             if (r == null || r.Punkte.Count < 2) { Status(L.T("st_keine_route"), autoAus: true); return; }
             _startUeberschreibung = null;
             _istTour = false; _tourOriginal = null; _navZiel = (zielLat, zielLon);
@@ -639,9 +665,10 @@ public partial class MainPage : ContentPage
         TabsMarkieren();
         NaviZustandAnzeigen();
         AltAnzeigen();
-        // Vorschau gleich AUFGEKLAPPT zeigen, damit der „Start"-Knopf sofort sichtbar ist
-        // (sonst steckt er unter der Faltkante und der Griff ist schwer zu treffen).
-        if (!_navAktiv) SheetSetzen(true);
+        // Vorschau EINGEKLAPPT (Peek) zeigen, NICHT aufpoppen: der „Start"-Knopf sitzt jetzt klein
+        // in der Peek-Zeile neben den Transport-Icons, daher muss die Schublade nicht aufklappen –
+        // so bleibt die ganze (oben kamera-gefittete) Route sichtbar und zentriert.
+        if (!_navAktiv) SheetSetzen(false, animiert: false);
         if (_navAktiv && _letzteGeo != null) AktualisiereNav(_letzteGeo.Value.lat, _letzteGeo.Value.lon);
     }
 
@@ -652,8 +679,7 @@ public partial class MainPage : ContentPage
     {
         NaviVorschau.IsVisible = !_navAktiv;
         NaviLaufKopf.IsVisible = _navAktiv;
-        StartBtn.IsVisible = !_navAktiv;
-        StopBtn.IsVisible = false;           // großer Stop entfällt (war doppelt) – der kompakte im Lauf-Kopf genügt
+        StartBtn.IsVisible = !_navAktiv;     // kleiner Start in der Transport-Zeile (Peek)
         StopBtnPeek.IsVisible = _navAktiv;   // einziger Stop, im immer sichtbaren Peek
         ZurueckBtn.IsVisible = !_navAktiv;   // „Zurück" zur Start-Seite nur in der Vorschau (vor Start / nach Stop)
         AnweisungBox.IsVisible = _navAktiv;
@@ -721,7 +747,7 @@ public partial class MainPage : ContentPage
             if (!_zielAngesagt)
             {
                 _zielAngesagt = true;
-                if (Einst.Ton) Sprich(L.T("ansage_ziel_erreicht"));
+                if (Einst.Ton) Sprich(NaviText("ansage_ziel_erreicht"));
                 NavigationBeenden();   // setzt selbst Status(null) – daher Meldung DANACH setzen
                 Status(L.T("st_ziel_erreicht"), autoAus: true);
             }
@@ -755,7 +781,7 @@ public partial class MainPage : ContentPage
             if (Einst.Ton)
             {
                 if (distNext > 45 && distNext < 160 && _vorabGesprochen != next)
-                { Sprich(L.T("ansage_vorab", $"{Math.Round(distNext / 10) * 10:0}", Saubere(_navManoever[next].Anweisung))); _vorabGesprochen = next; }
+                { Sprich(NaviText("ansage_vorab", $"{Math.Round(distNext / 10) * 10:0}", Saubere(_navManoever[next].Anweisung))); _vorabGesprochen = next; }
                 else if (distNext <= 45 && _letztGesprochen != next)
                 { Sprich(Saubere(_navManoever[next].Anweisung)); _letztGesprochen = next; }
             }
@@ -796,7 +822,7 @@ public partial class MainPage : ContentPage
                 int ein = Math.Min(idx + 1, _tourOriginal.Count - 1);
                 var rest = _tourOriginal.GetRange(ein, _tourOriginal.Count - ein);
                 var r = await RouteService.RouteAsync(lat, lon, _tourOriginal[ein].lat, _tourOriginal[ein].lon,
-                    Einst.Profil, opt, Einst.Locale, folge: true);
+                    Einst.Profil, opt, Einst.NaviLocale, folge: true);
                 if (_navPunkte != null && r != null && r.Punkte.Count >= 2)   // Sitzung noch aktiv?
                 {
                     var komb = new List<(double lat, double lon)>(r.Punkte);
@@ -807,7 +833,7 @@ public partial class MainPage : ContentPage
             }
             else if (_navZiel is { } z)
             {
-                var (r, alt) = await RouteService.RouteVollAsync(lat, lon, z.lat, z.lon, Einst.Profil, opt, Einst.Locale, 2, folge: true);
+                var (r, alt) = await RouteService.RouteVollAsync(lat, lon, z.lat, z.lon, Einst.Profil, opt, Einst.NaviLocale, 2, folge: true);
                 if (_navPunkte != null && r != null && r.Punkte.Count >= 2)
                 {
                     _alternativen = alt; _navMinuten = r.Minuten;
@@ -829,7 +855,7 @@ public partial class MainPage : ContentPage
     {
         string costing = Einst.Profil is "auto" or "bicycle" ? Einst.Profil : "pedestrian";
         RouteErgebnis? tr = null;
-        try { tr = await RouteService.TraceAsync(punkte, costing, Einst.Locale, folge: true); }   // Folge (Tour zählt schon)
+        try { tr = await RouteService.TraceAsync(punkte, costing, Einst.NaviLocale, folge: true); }   // Folge (Tour zählt schon)
         catch (Exception ex) { Debug.WriteLine(ex); }
         var pts = tr != null && tr.Punkte.Count >= 2 ? tr.Punkte : punkte;
         var man = tr?.Manoever ?? new List<Manoever>();
@@ -906,14 +932,49 @@ public partial class MainPage : ContentPage
         }
     }
 
+    // Passende TTS-Stimme zur NAVIGATIONS-Sprache (asynchron aufgelöst + gecacht). Die Ansagen
+    // sollen in der Navi-Sprache klingen, NICHT in der App-Oberflächen- oder Gerätesprache.
+    private Locale? _ttsLocale;
+    private string _ttsLocaleFuer = "";
+
+    private async void TtsLocaleAufloesen(string sprache)
+    {
+        _ttsLocaleFuer = sprache;   // sofort markieren → keine Doppel-Auflösung bei schnellen Ansagen
+        try
+        {
+            var locales = await TextToSpeech.Default.GetLocalesAsync();
+            // Bevorzugt eine Stimme mit passender Sprache (de/en); das Land (de-DE/de-AT …) ist egal.
+            // StartsWith ist tolerant gegenüber 2-/3-Buchstaben-Codes je Plattform (de vs. deu).
+            _ttsLocale = locales.FirstOrDefault(x =>
+                !string.IsNullOrEmpty(x.Language) &&
+                x.Language.StartsWith(sprache, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex) { Debug.WriteLine(ex); }
+    }
+
     private void Sprich(string text)
     {
         try
         {
+            // Stimme passend zur Navi-Sprache wählen (asynchron auflösen + cachen). Solange noch nicht
+            // aufgelöst, spricht das Gerät in seiner Standardstimme – ab der nächsten Ansage korrekt.
+            if (_ttsLocaleFuer != Einst.NaviSprache) { _ttsLocale = null; TtsLocaleAufloesen(Einst.NaviSprache); }
             var opt = new SpeechOptions { Volume = (float)Math.Clamp(Einst.Ansagelautstaerke, 0, 1) };
+            if (_ttsLocale != null && _ttsLocaleFuer == Einst.NaviSprache) opt.Locale = _ttsLocale;
             _ = TextToSpeech.Default.SpeakAsync(text, opt);
         }
         catch (Exception ex) { Debug.WriteLine(ex); }
+    }
+
+    // Ansage-Text in der NAVIGATIONS-Sprache (nicht in der App-Oberflächensprache). Die gesprochenen
+    // Texte sollen zur Navi-Sprache passen, daher direkt aus der Texte-Tabelle in Einst.NaviSprache.
+    private static string NaviText(string key) => Texte.Hole(key, Einst.NaviSprache);
+
+    private static string NaviText(string key, params object[] args)
+    {
+        var muster = Texte.Hole(key, Einst.NaviSprache);
+        try { return string.Format(muster, args); }
+        catch (FormatException) { return muster; }
     }
 
     // „Stop" beendet die Turn-by-Turn-Navigation, kehrt aber zur Routen-VORSCHAU zurück
@@ -993,7 +1054,22 @@ public partial class MainPage : ContentPage
         features.Add(feature);
         _routeLayer.Features = features;
         _routeLayer.DataHasChanged();
-        if (fitKamera && pts.Count > 1) _map.Navigator.ZoomToBox(new MRect(minx, miny, maxx, maxy));
+        if (fitKamera && pts.Count > 1)
+        {
+            // Rand um die Route lassen (~15 %), damit sie nicht am Bildschirmrand klebt.
+            double mx = (maxx - minx) * 0.15, my = (maxy - miny) * 0.15;
+            if (mx <= 0) mx = 200; if (my <= 0) my = 200;
+            _map.Navigator.ZoomToBox(new MRect(minx - mx, miny - my, maxx + mx, maxy + my));
+            // Die untere Schublade (Peek) verdeckt den unteren Kartenrand. Darum die Ansicht um eine
+            // halbe Peek-Höhe nach OBEN schieben (Center nach Süden) – so liegt die ganze Route inkl.
+            // aktueller Position (Start) ÜBER dem Fenster und ist zentriert im sichtbaren Bereich.
+            var vp = _map.Navigator.Viewport;
+            if (vp.Resolution > 0 && vp.Height > 0)
+            {
+                double versatzPx = SheetPeek / 2.0 + 16;   // halbe Peek-Höhe + etwas Luft
+                _map.Navigator.CenterOn(new MPoint(vp.CenterX, vp.CenterY - versatzPx * vp.Resolution));
+            }
+        }
     }
 
     // ---- Richtungspfeil (lila Schaft + Spitze) – Port aus navi_route.js/navi.js ----
@@ -1309,7 +1385,11 @@ public partial class MainPage : ContentPage
     // können, auf die Live-Karte übernehmen (Kartenmodus, Fortbewegungsprofil, Overlay).
     private void KartenEinstellungenAnwenden()
     {
-        if (Einst.Karte != _modusJetzt) KarteWechseln(Einst.Karte);
+        // Effektiven Basiskarten-Modus aus Farbmodus + Kartenwahl bestimmen und nur tauschen, wenn er
+        // sich gegenüber der angewandten Ebene geändert hat (Kartenwahl, Farbmodus oder – bei „auto" –
+        // das System-Theme). „auto" wird hier bei jeder Rückkehr auf die Karte neu ausgewertet.
+        var effektiv = EffektiverKartenmodus();
+        if (effektiv != _modusJetzt) BasiskarteSetzen(effektiv);
         if (Einst.Profil != _profilJetzt) { WanderLayerSetzen(); TabsMarkieren(); }
         if (_wanderLayer.Enabled != Einst.Wanderwege) { _wanderLayer.Enabled = Einst.Wanderwege; _map.RefreshGraphics(); }
     }
@@ -1326,7 +1406,7 @@ public partial class MainPage : ContentPage
     {
         Einst.Ton = !Einst.Ton;
         TonIconAktualisieren();
-        if (Einst.Ton) Sprich(L.T("ansage_sprachansagen_an"));
+        if (Einst.Ton) Sprich(NaviText("ansage_sprachansagen_an"));
     }
 
     private void TonIconAktualisieren()
@@ -1431,9 +1511,19 @@ public partial class MainPage : ContentPage
     }
 
     // ---- Karten-/Routing-Anwendung (Quellen-Wechsel; Steuerung jetzt in der Einstellungen-Seite) ----
-    private void KarteWechseln(Kartenmodus m)
+    // Effektiver Kartenmodus = Nutzer-Kartenwahl (Einst.Karte), bei Farbmodus „nacht" bzw. „auto"+System
+    // dunkel auf Dunkel umgebogen. „auto" wertet das System-Theme bei jedem Aufruf neu aus.
+    private Kartenmodus EffektiverKartenmodus()
     {
-        Einst.Karte = m;
+        bool systemDunkel = Application.Current?.RequestedTheme == AppTheme.Dark;
+        return MapQuellen.EffektiverModus(Einst.Farbmodus, Einst.Karte, systemDunkel);
+    }
+
+    // Tauscht die Basiskarten-Ebene auf den gegebenen (effektiven) Modus, OHNE die Nutzer-Kartenwahl
+    // (Einst.Karte) zu überschreiben – sonst würde der Nachtmodus den gewählten Tag-Modus dauerhaft
+    // ersetzen. Die Kartenwahl wird ausschließlich auf der Einstellungen-Seite gesetzt.
+    private void BasiskarteSetzen(Kartenmodus m)
+    {
         _aktiveQuelle = MapQuellen.Quelle(m);
         var neu = new TileLayer(_aktiveQuelle) { Name = "Basis" };
         var alt = _basisLayer;
@@ -1503,7 +1593,7 @@ public partial class MainPage : ContentPage
             for (int i = 0; i < stationen.Count - 1; i++)
             {
                 var r = await RouteService.RouteAsync(stationen[i].lat, stationen[i].lon,
-                    stationen[i + 1].lat, stationen[i + 1].lon, Einst.Profil, opt, Einst.Locale, folge: i > 0);
+                    stationen[i + 1].lat, stationen[i + 1].lon, Einst.Profil, opt, Einst.NaviLocale, folge: i > 0);
                 if (r == null || r.Punkte.Count < 2) continue;
                 int off = alle.Count;
                 foreach (var m in r.Manoever)
@@ -1611,7 +1701,7 @@ public partial class MainPage : ContentPage
             var opt = RouteService.CostingOptionen(Einst.Profil, Einst.Wegtyp,
                 Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche);
             var r = await RouteService.RouteAsync(_letzteGeo.Value.lat, _letzteGeo.Value.lon, zlat, zlon,
-                Einst.Profil, opt, Einst.Locale, folge: true);
+                Einst.Profil, opt, Einst.NaviLocale, folge: true);
             if (r == null || r.Punkte.Count < 2) { Status(L.T("st_keine_anfahrt"), autoAus: true); return; }
             var komb = new List<(double lat, double lon)>(r.Punkte);
             komb.AddRange(rest);
@@ -1620,6 +1710,135 @@ public partial class MainPage : ContentPage
             Status(null);
         }
         catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("st_anfahrt_nicht_erreichbar"), autoAus: true); }
+    }
+
+    // ---- Gruppen-Position (Live-Standort teilen) ---------------------------
+    private static string GruppenAnzeigename()
+    {
+        if (!string.IsNullOrWhiteSpace(Einst.GruppenName)) return Einst.GruppenName.Trim();
+        if (!string.IsNullOrWhiteSpace(Auth.Name)) return Auth.Name.Trim();
+        return L.T("gruppe_default_name");
+    }
+
+    private void GruppeIconAktualisieren()
+    {
+        bool aktiv = _gruppeCode.Length > 0;
+        if (GruppeBorder != null) GruppeBorder.BackgroundColor = aktiv ? Microsoft.Maui.Graphics.Color.FromArgb("#16a34a") : Weiss;
+        if (GruppeBadge != null) GruppeBadge.IsVisible = aktiv;
+        if (aktiv && GruppeBadgeText != null && string.IsNullOrEmpty(GruppeBadgeText.Text)) GruppeBadgeText.Text = "0";
+    }
+
+    private void GruppeStart()
+    {
+        if (_gruppeTimer == null)
+        {
+            _gruppeTimer = Dispatcher.CreateTimer();
+            _gruppeTimer.Interval = TimeSpan.FromSeconds(5);   // Mitglieder-Positionen alle 5 s nachladen
+            _gruppeTimer.IsRepeating = true;
+            _gruppeTimer.Tick += (_, __) => _ = GruppeAktualisieren();
+        }
+        _gruppeTimer.Stop();
+        _gruppeTimer.Start();
+        _ = GruppeAktualisieren();   // sofort einmal laden
+    }
+
+    private void GruppeStop() => _gruppeTimer?.Stop();   // Code bleibt erhalten (Fortsetzung bei OnAppearing)
+
+    private async Task GruppeAktualisieren()
+    {
+        if (_gruppeCode.Length == 0) return;
+        var mitglieder = await GruppeService.HoleAsync(_gruppeCode);
+        if (_gruppeCode.Length == 0) return;   // zwischenzeitlich verlassen
+        GruppeZeichnen(mitglieder);
+    }
+
+    // Mitglieder als beschriftete Marker zeichnen (frisch = orange, veraltet = grau); mich selbst
+    // (eigener Beam) auslassen. Badge zeigt die Zahl der sichtbaren Mitreisenden.
+    private void GruppeZeichnen(List<GruppenMitglied> mitglieder)
+    {
+        string ich = GruppenAnzeigename();
+        var feats = new List<IFeature>();
+        int andere = 0;
+        foreach (var m in mitglieder)
+        {
+            if (string.Equals(m.Name, ich, StringComparison.OrdinalIgnoreCase)) continue;   // mich nicht doppelt
+            andere++;
+            var (x, y) = ZuMercator(m.Lat, m.Lng);
+            string farbe = m.AlterS < 90 ? "#f59e0b" : "#94a3b8";   // frisch orange, veraltet grau
+            var f = new GeometryFeature { Geometry = new NetTopologySuite.Geometries.Point(x, y) };
+            f.Styles.Add(new SymbolStyle
+            {
+                SymbolType = SymbolType.Ellipse, SymbolScale = 0.7,
+                Fill = new Mapsui.Styles.Brush(Mapsui.Styles.Color.FromString(farbe)),
+                Outline = new Pen(Mapsui.Styles.Color.White, 2),
+            });
+            f.Styles.Add(new LabelStyle
+            {
+                Text = m.Name, Offset = new Offset(0, 20), Font = new Mapsui.Styles.Font { Size = 12, Bold = true },
+                ForeColor = Mapsui.Styles.Color.FromString("#0f172a"),
+                BackColor = new Mapsui.Styles.Brush(Mapsui.Styles.Color.White),
+                Halo = new Pen(Mapsui.Styles.Color.White, 2),
+            });
+            feats.Add(f);
+        }
+        _gruppeLayer.Features = feats;
+        _gruppeLayer.DataHasChanged();
+        _map.RefreshGraphics();
+        if (GruppeBadgeText != null) GruppeBadgeText.Text = andere.ToString();
+        if (GruppeBadge != null) GruppeBadge.IsVisible = _gruppeCode.Length > 0;
+    }
+
+    private async void OnGruppe(object? sender, EventArgs e)
+    {
+        if (_gruppeCode.Length == 0) { await GruppeBeitretenDialog(); return; }
+        string verlassen = L.T("gruppe_verlassen"), nameAendern = L.T("gruppe_name_aendern");
+        string wahl = await DisplayActionSheet(L.T("gruppe_aktiv_titel", _gruppeCode), L.T("abbrechen"), verlassen, nameAendern);
+        if (wahl == verlassen) GruppeVerlassen();
+        else if (wahl == nameAendern) await GruppeNameDialog();
+    }
+
+    private async Task GruppeBeitretenDialog()
+    {
+        string code = await DisplayPromptAsync(L.T("gruppe_titel"), L.T("gruppe_code_msg"),
+            L.T("gruppe_beitreten_btn"), L.T("abbrechen"), L.T("gruppe_code_placeholder"), maxLength: 32);
+        code = GruppeService.CodeSaeubern(code);
+        if (code.Length == 0) return;   // abgebrochen oder leer
+        string vorgabe = GruppenAnzeigename();
+        string name = await DisplayPromptAsync(L.T("gruppe_name_titel"), L.T("gruppe_name_msg"),
+            L.T("gruppe_beitreten_btn"), L.T("abbrechen"), null, maxLength: 40, initialValue: vorgabe);
+        if (name == null) return;   // abgebrochen
+        name = string.IsNullOrWhiteSpace(name) ? vorgabe : name.Trim();
+        Einst.GruppenName = name;
+        _gruppeCode = code; Einst.GruppenCode = code;
+        GruppeIconAktualisieren();
+        GruppeStart();
+        if (_letzteGeo is { } g)   // sofort die eigene Position teilen
+        {
+            _letztGruppeSendeMs = Environment.TickCount64;
+            _ = GruppeService.SendePositionAsync(_gruppeCode, name, g.lat, g.lon);
+        }
+        Status(L.T("gruppe_beigetreten", code), autoAus: true);
+    }
+
+    private void GruppeVerlassen()
+    {
+        _gruppeCode = ""; Einst.GruppenCode = "";
+        GruppeStop();
+        _gruppeLayer.Features = new List<IFeature>();
+        _gruppeLayer.DataHasChanged();
+        _map.RefreshGraphics();
+        GruppeIconAktualisieren();
+        Status(L.T("gruppe_verlassen_ok"), autoAus: true);
+    }
+
+    private async Task GruppeNameDialog()
+    {
+        string vorgabe = GruppenAnzeigename();
+        string name = await DisplayPromptAsync(L.T("gruppe_name_titel"), L.T("gruppe_name_msg"),
+            L.T("ok"), L.T("abbrechen"), null, maxLength: 40, initialValue: vorgabe);
+        if (string.IsNullOrWhiteSpace(name)) return;
+        Einst.GruppenName = name.Trim();
+        _ = GruppeAktualisieren();   // Selbst-Filter/Marker neu auswerten
     }
 
 #if ANDROID

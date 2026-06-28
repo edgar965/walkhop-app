@@ -21,6 +21,17 @@ public static class MapQuellen
         return new FileCache(d, "png");
     }
 
+    /// <summary>Effektiver Karten-Modus aus Farbmodus + der Nutzer-Kartenwahl für die NAVIGATIONS-Karte:
+    /// "nacht" erzwingt die dunkle Basiskarte; "auto" folgt dem System-Theme (dunkel → Dunkel); "tag"
+    /// (und "auto" bei hellem Theme) nutzt den vom Nutzer gewählten Kartenmodus.
+    /// Vorrangregel: Sobald „dunkel" gefordert ist (Nacht oder Auto+System dunkel), hat der Farbmodus
+    /// Vorrang vor der Kartenwahl; sonst gewinnt die Nutzer-Wahl (auch wenn das selbst „Dunkel" ist).</summary>
+    public static Kartenmodus EffektiverModus(string farbmodus, Kartenmodus gewaehlt, bool systemDunkel)
+    {
+        bool dunkel = farbmodus == "nacht" || (farbmodus == "auto" && systemDunkel);
+        return dunkel ? Kartenmodus.Dunkel : gewaehlt;
+    }
+
     public static HttpTileSource Quelle(Kartenmodus m) => m switch
     {
         Kartenmodus.Standard => Bauen("standard",

@@ -3,7 +3,8 @@ using System.Text.Json;
 
 namespace SpinNaviApp;
 
-public record TourPoi(string Name, string Kategorie, string Bild, double Lat, double Lon, int DistM);
+// Id = Foto-Primärschlüssel (für die Offline-Variante /ausfluege/foto/<id>/medium); optional/additiv.
+public record TourPoi(string Name, string Kategorie, string Bild, double Lat, double Lon, int DistM, int Id = 0);
 
 /// <summary>Tour-Details (/ausfluege/&lt;pk&gt;/details.json): Sehenswürdigkeiten am Weg.</summary>
 public static class TourDetailService

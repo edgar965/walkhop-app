@@ -266,7 +266,7 @@
                                     <Label x:Name="NaviSpracheWert" Style="{StaticResource RowS}" Text="Deutsch" />
                                 </VerticalStackLayout>
                                 <Label Grid.Column="1" Style="{StaticResource Chev}" />
-                                <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnSpracheWechseln" /></Grid.GestureRecognizers>
+                                <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnNaviSpracheWechseln" /></Grid.GestureRecognizers>
                             </Grid>
                             <BoxView Style="{StaticResource Trenner}" />
                             <Grid ColumnDefinitions="*,Auto" Padding="0,12">
@@ -375,8 +375,15 @@
                             <Label x:Name="CacheLabel" Text="Zwischenspeicher: –" FontSize="13" TextColor="#64748b" />
                             <Label Text="{loc:Translate einst_offline_info}"
                                    FontSize="12" TextColor="#94a3b8" />
+                            <!-- Vordefinierte Region offline speichern (Kacheln + verkleinerte Fotos der Region) -->
+                            <Button x:Name="RegionLadenBtn" AutomationId="offline_region" Text="{loc:Translate einst_region_laden_btn}" Clicked="OnRegionLaden"
+                                    BackgroundColor="#0d9488" TextColor="White" CornerRadius="10" />
+                            <!-- Umgebung (~3 km um den Standort) offline vorladen -->
                             <Button x:Name="OfflineLadenBtn" AutomationId="offline_laden" Text="{loc:Translate einst_offline_laden_btn}" Clicked="OnOfflineLaden"
                                     BackgroundColor="#16a34a" TextColor="White" CornerRadius="10" />
+                            <!-- Liste der gespeicherten Offline-Pakete (Regionen/Touren) -->
+                            <Label Text="{loc:Translate offline_pakete_titel}" FontSize="13" FontAttributes="Bold" TextColor="#475569" Margin="0,4,0,0" />
+                            <VerticalStackLayout x:Name="OfflinePaketeBox" Spacing="6" />
                             <Button Text="{loc:Translate einst_cache_leeren_btn}" Clicked="OnCacheLeeren"
                                     BackgroundColor="#e2231a" TextColor="White" CornerRadius="10" />
                         </VerticalStackLayout>

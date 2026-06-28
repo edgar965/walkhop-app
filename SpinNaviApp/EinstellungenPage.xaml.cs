@@ -41,6 +41,7 @@ public partial class EinstellungenPage : ContentPage
         SprachnaviSchalter.IsToggled = Einst.Ton;
         LautstaerkeSlider.Value = Einst.Ansagelautstaerke;
         BenachrichtigungSchalter.IsToggled = Einst.Benachrichtigungstoene;
+        NaviSpracheLabelSetzen();
         FarbmodusMarkieren();
         KartenansichtMarkieren();
         // Karte
@@ -95,17 +96,29 @@ public partial class EinstellungenPage : ContentPage
 
     private void OnSpracheWechseln(object? sender, TappedEventArgs e)
     {
-        // App-Sprache umschalten: Lokalisierung wechselt + persistiert + steuert den Routing-Locale.
+        // App-Sprache umschalten: Lokalisierung wechselt + persistiert + steuert NUR die Oberfläche.
         Lokalisierung.Instanz.Wechsle(Einst.Sprache == "de" ? "en" : "de");
         SpracheLabelSetzen();
+        // Solange der Nutzer die Navi-Sprache nicht explizit gewählt hat, folgt sie der App-Sprache
+        // (Einst.NaviSprache liefert dann den App-Sprachwert) → Anzeige mitziehen.
+        NaviSpracheLabelSetzen();
     }
 
-    private void SpracheLabelSetzen()
+    // App-Sprache (Oberfläche) – steuert die gesamte Bedienoberfläche.
+    private void SpracheLabelSetzen() =>
+        SpracheWert.Text = Einst.Sprache == "en" ? L.T("sprache_english") : L.T("sprache_deutsch");
+
+    private void OnNaviSpracheWechseln(object? sender, TappedEventArgs e)
     {
-        string t = Einst.Sprache == "en" ? L.T("sprache_english") : L.T("sprache_deutsch");
-        SpracheWert.Text = t;
-        NaviSpracheWert.Text = t;
+        // NUR die Navigationssprache (Sprachansagen + Routing-Anweisungen) umschalten. Bewusst KEIN
+        // Lokalisierung.Wechsle und KEIN Einst.Sprache: die App-Oberfläche bleibt unverändert.
+        Einst.NaviSprache = Einst.NaviSprache == "de" ? "en" : "de";
+        NaviSpracheLabelSetzen();
     }
+
+    // Navigationssprache (Ansagen + Routing-Anweisungen) – unabhängig von der Oberfläche.
+    private void NaviSpracheLabelSetzen() =>
+        NaviSpracheWert.Text = Einst.NaviSprache == "en" ? L.T("sprache_english") : L.T("sprache_deutsch");
 
     private void OnEinheitenWechseln(object? sender, TappedEventArgs e)
     {
@@ -123,6 +136,7 @@ public partial class EinstellungenPage : ContentPage
         VersionLabel.Text = L.T("version_label", AppInfo.Current.VersionString, AppInfo.Current.BuildString);
         ServerLabel.Text = L.T("server_label", AppConfig.ApiBase);
         SpracheLabelSetzen();
+        NaviSpracheLabelSetzen();
         EinheitenLabelSetzen();
         CacheGroesseAnzeigen();
         StandardPunktAnzeigen();
@@ -226,6 +240,46 @@ public partial class EinstellungenPage : ContentPage
                 : L.T("cache_info", dateien, bytes / 1024.0 / 1024.0);
         }
         catch (Exception ex) { Debug.WriteLine(ex); CacheLabel.Text = L.T("cache_strich"); }
+        PaketeAnzeigen();   // gespeicherte Offline-Pakete mit aktualisieren
+    }
+
+    // Liste der gespeicherten Offline-Pakete (Regionen/Touren) füllen.
+    private void PaketeAnzeigen()
+    {
+        if (OfflinePaketeBox == null) return;
+        OfflinePaketeBox.Children.Clear();
+        var pakete = OfflinePakete.Laden();
+        if (pakete.Count == 0)
+        {
+            OfflinePaketeBox.Children.Add(new Label
+            {
+                Text = L.T("offline_pakete_leer"), FontSize = 12,
+                TextColor = Microsoft.Maui.Graphics.Color.FromArgb("#94a3b8"),
+            });
+            return;
+        }
+        foreach (var p in pakete)
+        {
+            double mb = p.Bytes / 1024.0 / 1024.0;
+            var texte = new VerticalStackLayout { Spacing = 1 };
+            texte.Add(new Label
+            {
+                Text = (p.IstTour ? "🥾 " : "🗺 ") + p.Name, FontSize = 13, FontAttributes = FontAttributes.Bold,
+                TextColor = Microsoft.Maui.Graphics.Color.FromArgb("#0f172a"),
+            });
+            texte.Add(new Label
+            {
+                Text = L.T("offline_paket_detail", p.Kacheln, p.Fotos) + $" · {mb:0} MB",
+                FontSize = 11, TextColor = Microsoft.Maui.Graphics.Color.FromArgb("#64748b"),
+            });
+            OfflinePaketeBox.Children.Add(new Border
+            {
+                BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#f8fafc"),
+                StrokeThickness = 0, Padding = new Thickness(10, 8),
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
+                Content = texte,
+            });
+        }
     }
 
     // Lädt die Kacheln rund um den aktuellen Standort (~3 km) offline vor. In den Einstellungen
@@ -278,6 +332,63 @@ public partial class EinstellungenPage : ContentPage
     }
 
     private bool _laedtOffline;
+
+    // Eine vordefinierte Region (Server-Liste, mit bbox) offline speichern: Kacheln (z10–14, gedeckelt)
+    // + die verkleinerten Fotos der Region. Zeigt vorher eine Größen-Schätzung zur Bestätigung.
+    private async void OnRegionLaden(object? sender, EventArgs e)
+    {
+        if (_laedtOffline) return;
+        int budget = Auth.AlleFunktionen ? int.MaxValue : (Auth.Premium ? 3 : 0) + Auth.OfflineGekauft;
+        if (Einst.OfflineAnzahl >= budget)
+        {
+            bool hin = await DisplayAlert(L.T("offline_titel"), L.T("offline_premium_text"), L.T("offline_zum_konto"), L.T("abbrechen"));
+            if (hin) await Shell.Current.GoToAsync("//konto");
+            return;
+        }
+        RegionLadenBtn.IsEnabled = false;
+        try
+        {
+            var regionen = await RegionenService.LadeAsync();
+            if (regionen.Count == 0) { await DisplayAlert(L.T("einst_region_laden_btn"), L.T("region_keine"), L.T("ok")); return; }
+            var namen = regionen.Select(r => $"{r.Gruppe} – {r.Name}").ToArray();
+            string wahl = await DisplayActionSheet(L.T("region_waehlen_titel"), L.T("abbrechen"), null, namen);
+            if (string.IsNullOrEmpty(wahl) || wahl == L.T("abbrechen")) return;
+            int idx = Array.IndexOf(namen, wahl);
+            if (idx < 0) return;
+            var region = regionen[idx];
+
+            List<FotoPunkt> fotos;
+            try { fotos = await FotoService.LadeAsync(); } catch (Exception ex) { Debug.WriteLine(ex); fotos = new(); }
+
+            var schaetz = OfflineManager.SchaetzeRegion(region, fotos);
+            double mb = schaetz.Bytes / 1024.0 / 1024.0;
+            bool los = await DisplayAlert(region.Name,
+                L.T("region_schaetzung", schaetz.Kacheln, schaetz.Fotos, mb.ToString("0")),
+                L.T("region_laden_btn"), L.T("abbrechen"));
+            if (!los) return;
+
+            _laedtOffline = true;
+            var quelle = MapQuellen.Quelle(Einst.Karte);
+            var prog = new Progress<(int done, int total, string phase)>(p =>
+                MainThread.BeginInvokeOnMainThread(() =>
+                    CacheLabel.Text = L.T(p.phase == "fotos" ? "region_fortschritt_fotos" : "region_fortschritt_kacheln", p.done, p.total)));
+            var erg = await Task.Run(() => OfflineManager.LadeRegionAsync(region, quelle, fotos, prog));
+            if (erg.Ok)
+            {
+                Einst.OfflineAnzahl++;
+                await DisplayAlert(L.T("offline_titel"),
+                    L.T("region_fertig", region.Name, erg.Kacheln, erg.Fotos, (erg.Bytes / 1024.0 / 1024.0).ToString("0")), L.T("ok"));
+            }
+            else await DisplayAlert(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok"));
+        }
+        catch (Exception ex) { Debug.WriteLine(ex); await DisplayAlert(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok")); }
+        finally
+        {
+            _laedtOffline = false;
+            RegionLadenBtn.IsEnabled = true;
+            CacheGroesseAnzeigen();   // aktualisiert Größe + Pakete-Liste
+        }
+    }
 
     // ---- Standard-Punkt (Bezugspunkt für Entfernungsanzeige) ----
     private void StandardPunktAnzeigen()

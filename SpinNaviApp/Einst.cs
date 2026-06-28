@@ -97,10 +97,11 @@ public static class Einst
         set => Preferences.Set("v_oberflaeche", value);
     }
 
-    /// <summary>App-, Ansage- und Routensprache: "de" | "en". Steuert die gesamte App-Oberfläche
-    /// (über <see cref="Lokalisierung"/>) UND den Routing-/TTS-Locale. Default = Englisch; als Admin
-    /// (e@edgarm.de bzw. Auth.IstAdmin) Deutsch – solange der Nutzer noch nicht selbst gewählt hat
-    /// (<see cref="SpracheGesetzt"/>).</summary>
+    /// <summary>App-Oberflächensprache: "de" | "en". Steuert NUR die Bedienoberfläche
+    /// (über <see cref="Lokalisierung"/>). Die Navigation (Sprachansagen + Routing-Anweisungen) hat
+    /// mit <see cref="NaviSprache"/> eine EIGENE Sprache, die der App-Sprache nur als Default folgt.
+    /// Default = Englisch; als Admin (e@edgarm.de bzw. Auth.IstAdmin) Deutsch – solange der Nutzer
+    /// noch nicht selbst gewählt hat (<see cref="SpracheGesetzt"/>).</summary>
     public static string Sprache
     {
         get => Preferences.Get("sprache", StandardSprache);
@@ -114,8 +115,23 @@ public static class Einst
     /// <summary>Default-Sprache ohne explizite Wahl: Admin → Deutsch, sonst Englisch.</summary>
     public static string StandardSprache => Auth.IstAdmin ? "de" : "en";
 
-    /// <summary>BCP-47-Code für Valhalla/TTS aus <see cref="Sprache"/>.</summary>
+    /// <summary>BCP-47-Code der App-Oberflächensprache aus <see cref="Sprache"/> (allgemeiner
+    /// App-Locale). Für Navigation/Ansagen NICHT mehr verwendet – dort gilt <see cref="NaviLocale"/>.</summary>
     public static string Locale => Sprache == "en" ? "en-US" : "de-DE";
+
+    /// <summary>Sprache NUR der Navigation – Sprachansagen (TTS) UND Routing-/Abbiege-Anweisungen
+    /// der Valhalla-Engine: "de" | "en". Bewusst getrennt von der App-Oberfläche (<see cref="Sprache"/>):
+    /// das Umstellen ändert ausschließlich die Navi-Ausgabe, nicht die Bedienoberfläche.
+    /// Default = aktuelle App-Sprache (<see cref="Sprache"/>), solange der Nutzer die Navi-Sprache
+    /// noch nicht selbst gewählt hat (dann folgt sie automatisch der App-Sprache).</summary>
+    public static string NaviSprache
+    {
+        get => Preferences.Get("navi_sprache", Sprache);
+        set => Preferences.Set("navi_sprache", value);
+    }
+
+    /// <summary>BCP-47-Code für Valhalla/TTS aus <see cref="NaviSprache"/> (analog <see cref="Locale"/>).</summary>
+    public static string NaviLocale => NaviSprache == "en" ? "en-US" : "de-DE";
 
     // ---- Allgemein (Tab „Allgemein") -------------------------------------
     /// <summary>Maßeinheiten: "metrisch" | "imperial".</summary>
@@ -219,5 +235,21 @@ public static class Einst
     {
         get => Preferences.Get("manuelle_drehung", true);
         set => Preferences.Set("manuelle_drehung", value);
+    }
+
+    // ---- Gruppen-Position (Live-Standort mit der Gruppe teilen) -----------
+    /// <summary>Aktiver Gruppen-Code (leer = nicht in einer Gruppe). Solange gesetzt, teilt die
+    /// Navigations-Karte die eigene Position und zeigt die Mitglieder als Live-Marker.</summary>
+    public static string GruppenCode
+    {
+        get => Preferences.Get("gruppe_code", "");
+        set => Preferences.Set("gruppe_code", value);
+    }
+
+    /// <summary>Anzeigename in der Gruppe (Default: Konto-Name, sonst „Wanderer").</summary>
+    public static string GruppenName
+    {
+        get => Preferences.Get("gruppe_name", "");
+        set => Preferences.Set("gruppe_name", value);
     }
 }

@@ -3,7 +3,9 @@ using System.Text.Json;
 
 namespace SpinNaviApp;
 
-public record FotoPunkt(double Lat, double Lon, string Url, string Text, string Tour, int TourId);
+// Id = Primärschlüssel des Fotos (für die verkleinerte Offline-Variante /ausfluege/foto/<id>/medium);
+// optional/additiv, damit bestehende Aufrufe unverändert bleiben.
+public record FotoPunkt(double Lat, double Lon, string Url, string Text, string Tour, int TourId, int Id = 0);
 
 /// <summary>Lädt verortete Fotos entlang der Touren (/ausfluege/fotos.json) für die Foto-Ebene.</summary>
 public static class FotoService
@@ -31,7 +33,8 @@ public static class FotoService
                     && f.TryGetProperty("lng", out var lo) && lo.ValueKind == JsonValueKind.Number)
                     liste.Add(new FotoPunkt(la.GetDouble(), lo.GetDouble(),
                         Str(f, "url"), Str(f, "text"), Str(f, "tour"),
-                        f.TryGetProperty("tour_id", out var ti) && ti.ValueKind == JsonValueKind.Number ? ti.GetInt32() : 0));
+                        f.TryGetProperty("tour_id", out var ti) && ti.ValueKind == JsonValueKind.Number ? ti.GetInt32() : 0,
+                        f.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.Number ? id.GetInt32() : 0));
             }
         }
         return liste;

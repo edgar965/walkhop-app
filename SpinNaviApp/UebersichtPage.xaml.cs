@@ -36,6 +36,7 @@ public partial class UebersichtPage : ContentPage
     private MemoryLayer _markerLayer = null!;
     private MemoryLayer _genLayer = null!;          // generierte Rundwanderungen
     private List<GenWanderung> _genWanderungen = new();
+    private string _genCosting = "pedestrian";       // Modus der zuletzt generierten Rundwanderungen (für Dialog/Navigation)
     private readonly Dictionary<string, Button> _chips = new();
     private readonly Dictionary<int, Button> _radiusBtns = new();
 
@@ -124,6 +125,7 @@ public partial class UebersichtPage : ContentPage
             var (lon, lat) = SphericalMercator.ToLonLat(welt.X, welt.Y);
             MainThread.BeginInvokeOnMainThread(() =>
             {
+                if (NaechsteGenWanderung(lat, lon) is { } gw) { DialogZeigen(GenZuTour(gw)); return; }
                 if (NaechsteTourRoute(lat, lon) is { } tour) { DialogZeigen(tour); return; }
                 _ = KontextmenueZeigen(lat, lon);
             });
@@ -243,10 +245,18 @@ public partial class UebersichtPage : ContentPage
                 _gefiltert = gefiltert;
                 _tourLayer.Features = features;
                 _tourLayer.DataHasChanged();
+                // Filter/Suche sichtbar machen: Die Zoom-Glättung deaktiviert _tourLayer (und Fotos)
+                // kurzzeitig. Wäre der Layer genau jetzt noch deaktiviert, bliebe die Filteränderung
+                // UNSICHTBAR (die Karte zeigt weiter die alten Routen). Darum die Vektor-Layer sicher
+                // wieder aktivieren und einmal neu rendern – ein Filterlauf ist nie eine Zoom-Geste.
+                _vektorenVerborgen = false;
+                _tourLayer.Enabled = true;
+                _fotoLayer.Enabled = _fotoAn;
                 UmkreisKreisZeichnen();
                 FotoFilterAnwenden();
                 if (listeSichtbar) ListePanel.ItemsSource = gefiltert.Take(MaxRouten).ToList();
                 Status(statusNachher);
+                _map.RefreshGraphics();
             });
         });
     }
@@ -354,12 +364,20 @@ public partial class UebersichtPage : ContentPage
     // Karten-Tipp → Kontextmenü: Navigation zu / GPS-Position / Marker setzen.
     private async void OnKarteTipp(object? sender, MapInfoEventArgs e)
     {
+        // Welt-Position des Tipps holen; falls Mapsui (z. B. direkt nach Layer-/Zoom-Änderungen)
+        // ausnahmsweise keine WorldPosition liefert, ersatzweise aus der Screen-Position rechnen,
+        // damit ein Tipp auf die freie Karte zuverlässig das Kontextmenü auslöst.
         var wp = e.MapInfo?.WorldPosition;
+        if (wp == null && e.MapInfo?.ScreenPosition is { } sp)
+            wp = _map.Navigator.Viewport.ScreenToWorld(sp.X, sp.Y);
         if (wp == null) return;
         if (Environment.TickCount64 - _letztLangdruckMs < 700) return;   // Langdruck hat das Menü gerade gezeigt
         var (lon, lat) = SphericalMercator.ToLonLat(wp.X, wp.Y);
         // Tipp genau auf einen Foto-Marker → das Foto zeigen.
         if (NaechstesFoto(lat, lon) is { } foto) { await FotoBetrachten(foto); return; }
+        // Tipp genau auf eine SELBST ERRECHNETE Rundwanderung (liegt obenauf) → DEREN Detail-Fenster
+        // (vor den Standard-Touren prüfen, sonst öffnete sich fälschlich eine andere, nicht sichtbare Route).
+        if (NaechsteGenWanderung(lat, lon) is { } gw) { DialogZeigen(GenZuTour(gw)); return; }
         // Tipp genau auf eine GPS-Route → Tour-Detail-Fenster (Karte, Daten, Sehenswürdigkeiten).
         if (NaechsteTourRoute(lat, lon) is { } tour) { DialogZeigen(tour); return; }
         await KontextmenueZeigen(lat, lon);
@@ -395,11 +413,20 @@ public partial class UebersichtPage : ContentPage
     }
 
     // Foto-Betrachter: zeigt das Bild + Bildunterschrift in einem Modal; optional von dort navigieren.
+    // Bildquelle: bevorzugt die offline gespeicherte (verkleinerte) Variante per Foto-Id,
+    // sonst die Online-URL. So zeigt die App heruntergeladene Fotos auch ohne Netz.
+    private static ImageSource Bildquelle(int id, string url)
+    {
+        var lokal = OfflineFotos.LokaleQuelle(id);
+        if (lokal != null) return lokal;
+        var u = url.StartsWith("http") ? url : AppConfig.ApiBase + url;
+        return ImageSource.FromUri(new Uri(u));
+    }
+
     private async Task FotoBetrachten(FotoPunkt foto)
     {
-        var url = foto.Url.StartsWith("http") ? foto.Url : AppConfig.ApiBase + foto.Url;
         var bild = new Image { Aspect = Aspect.AspectFit, VerticalOptions = LayoutOptions.Fill, HorizontalOptions = LayoutOptions.Fill };
-        try { bild.Source = ImageSource.FromUri(new Uri(url)); } catch (Exception ex) { Debug.WriteLine(ex); }
+        try { bild.Source = Bildquelle(foto.Id, foto.Url); } catch (Exception ex) { Debug.WriteLine(ex); }
         string bu = !string.IsNullOrWhiteSpace(foto.Text) ? foto.Text : foto.Tour;
         var titel = new Label { Text = bu, TextColor = Microsoft.Maui.Graphics.Colors.White, FontSize = 14,
                                 Padding = new Thickness(14, 10), BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#003153"),
@@ -465,6 +492,8 @@ public partial class UebersichtPage : ContentPage
         Status(null);
         if (vorschlaege.Count == 0) { StatusKurz(L.T("nw_keine"), 4); return; }
         _genWanderungen = vorschlaege;
+        _genCosting = costing;                 // Modus merken (für Dialog/Navigation der generierten Routen)
+        GenLoeschenBtn.IsVisible = true;       // jetzt liegen berechnete Routen → Lösch-Knopf zeigen
 
         var features = new List<IFeature>();
         double minx = double.MaxValue, miny = double.MaxValue, maxx = double.MinValue, maxy = double.MinValue;
@@ -486,18 +515,59 @@ public partial class UebersichtPage : ContentPage
         _genLayer.DataHasChanged();
         if (minx <= maxx) _map.Navigator.ZoomToBox(new MRect(minx, miny, maxx, maxy));
         _map.RefreshGraphics();
+        // KEIN „Welche Wanderung?"-Popup und KEINE automatische Navigation mehr: alle berechneten
+        // Routen bleiben einfach auf der Karte liegen (der Lösch-Knopf ist eingeblendet). Der Nutzer
+        // tippt selbst eine Route an und öffnet damit deren Detail-Dialog (siehe OnKarteTipp/LongTap).
+    }
 
-        var namen = vorschlaege.Select(w => w.Name + (w.Fotos > 0 ? L.T("foto_count", w.Fotos) : "")).ToArray();
-        string pick = await DisplayActionSheet(L.T("nw_welche"), L.T("nw_nur_ansehen"), null, namen);
-        if (string.IsNullOrEmpty(pick) || pick == L.T("nw_nur_ansehen")) return;
-        var gewaehlt = vorschlaege.FirstOrDefault(w => pick.StartsWith(w.Name));
-        if (gewaehlt == null) return;
-        var t = new TourInfo(-1, gewaehlt.Name, gewaehlt.Km, gewaehlt.DauerMin,
-            costing == "bicycle" ? "radtour" : "wanderung", gewaehlt.Route,
-            new List<string> { "rundtour" }, gewaehlt.Farbe, gewaehlt.Route[0],
-            "", "", "", false, "");
-        MainPage.GeplanteTour = t;
-        await Shell.Current.GoToAsync("//navigation");
+    // Eine generierte Rundwanderung → TourInfo (Id = -1 markiert „selbst errechnet": keine
+    // Server-Details wie POIs/GPX/Termine). Für Detail-Dialog UND Navigation genutzt.
+    private TourInfo GenZuTour(GenWanderung w) => new TourInfo(
+        -1, w.Name, w.Km, w.DauerMin,
+        _genCosting == "bicycle" ? "radtour" : "wanderung", w.Route,
+        new List<string> { "rundtour" }, w.Farbe, w.Route.Count > 0 ? w.Route[0] : default,
+        "", "", "", false, "");
+
+    // Nächstgelegene selbst errechnete Rundwanderung zum Tipp-Punkt (null, wenn keine in ~12 px).
+    private GenWanderung? NaechsteGenWanderung(double lat, double lon)
+    {
+        if (_genWanderungen.Count == 0) return null;
+        double res = _map.Navigator.Viewport.Resolution;
+        if (res <= 0) return null;
+        double mProPixel = res * Math.Cos(lat * Math.PI / 180);
+        double tol = mProPixel * 12;
+        GenWanderung? best = null;
+        double bestD = tol;
+        foreach (var w in _genWanderungen)
+        {
+            if (w.Route.Count < 2) continue;
+            for (int i = 1; i < w.Route.Count; i++)
+            {
+                double d = NavGeo.DistanzZuSegment(lat, lon, w.Route[i - 1], w.Route[i]);
+                if (d < bestD) { bestD = d; best = w; }
+            }
+        }
+        return best;
+    }
+
+    // „Berechnete Routen löschen": entfernt alle generierten Rundwanderungen von der Karte.
+    private void OnGenLoeschen(object? sender, EventArgs e)
+    {
+        _genWanderungen = new List<GenWanderung>();
+        _genLayer.Features = new List<IFeature>();
+        _genLayer.DataHasChanged();
+        GenLoeschenBtn.IsVisible = false;
+        // Sauberen, antippbaren Zustand herstellen, damit ein Tipp auf die freie Karte sofort wieder
+        // das Kontextmenü zeigt (neue Wanderung ab Punkt): evtl. hängenden Langdruck-Block lösen,
+        // keine „gewählte" Tour mehr halten und die Vektor-Layer (Touren/Fotos) sicher reaktivieren –
+        // die Zoom-Glättung könnte _tourLayer sonst deaktiviert zurückgelassen haben.
+        _letztLangdruckMs = 0;
+        _gewaehlt = null;
+        _vektorenVerborgen = false;
+        _tourLayer.Enabled = true;
+        _fotoLayer.Enabled = _fotoAn;
+        _map.RefreshGraphics();
+        StatusKurz(L.T("ue_gen_geloescht"), 3);
     }
 
     // Nächstgelegene angezeigte Tour-Route zum Tipp-Punkt (null, wenn keine in Reichweite).
@@ -551,21 +621,111 @@ public partial class UebersichtPage : ContentPage
     private void DialogZeigen(TourInfo t)
     {
         _gewaehlt = t;
-        DlgKat.Text = t.Kategorie;
+        bool generiert = t.Id < 0;   // selbst errechnete Rundwanderung: keine Server-Details (POIs/GPX/Termine)
+        DlgKat.Text = generiert ? L.T("ue_gen_kat") : t.Kategorie;
         DlgName.Text = t.Name;
         string dauer = t.DauerMin >= 60 ? L.T("dlg_dauer_h", t.DauerMin / 60, t.DauerMin % 60) : L.T("dlg_dauer_min", t.DauerMin);
         DlgBadges.Text = L.T("dlg_badges", t.Km, dauer) + (string.IsNullOrEmpty(t.Grad) ? "" : L.T("dlg_badges_grad", t.Grad));
         DlgBeschr.Text = t.Beschreibung;
+        DlgBeschr.IsVisible = !string.IsNullOrEmpty(t.Beschreibung);
         // Oben die Mini-Karte mit der GPS-Route zeigen (Web-Vorbild). Steht eine Karte,
         // bleibt das Titelbild aus (sonst zwei 180-px-Blöcke übereinander) – wie im Web
         // (Karte ODER Bild im Visual-Bereich).
         bool karteDa = DlgRouteZeichnen(t);
         if (!karteDa && !string.IsNullOrEmpty(t.Bild)) { DlgBild.Source = t.Bild; DlgBild.IsVisible = true; }
         else DlgBild.IsVisible = false;
+        DlgExternGrid.IsVisible = !generiert;   // GPX/Termine nur für echte Server-Touren
+        DlgOfflineBtn.IsVisible = karteDa;      // „Tour offline speichern" nur bei echter Route (≥2 Punkte)
         DlgPois.Clear();
         DlgPoiTitel.IsVisible = false;
         Dialog.IsVisible = true;
-        _ = PoisLaden(t.Id);
+        // Jetzt ist der Dialog sichtbar → die Mini-Karte bekommt ihre Größe: erneut zoomen, damit
+        // Kartenausschnitt + rote Route beim ERSTEN Öffnen zuverlässig erscheinen (zusätzlich zum
+        // SizeChanged-Hook und der Selbst-Wiederholung in DlgZoomAnwenden).
+        if (karteDa) DlgZoomAnwenden();
+        if (!generiert) _ = PoisLaden(t.Id);       // echte Tour: POIs vom Server (per Id)
+        else _ = GenFotosLaden(t.Route);           // berechnete Route: Fotos entlang der Route aus der Foto-Ebene
+    }
+
+    // „Tour offline speichern": Kacheln entlang der Routen-bbox (z11–16, gedeckelt) + die
+    // verkleinerten Fotos ≤150 m an der Route. Zeigt vorher eine Größen-Schätzung zur Bestätigung.
+    private async void OnDialogOffline(object? sender, EventArgs e)
+    {
+        var t = _gewaehlt;
+        if (t == null || t.Route.Count < 2) return;
+        DlgOfflineBtn.IsEnabled = false;
+        try
+        {
+            try { if (_fotos.Count == 0) _fotos = await FotoService.LadeAsync(); }
+            catch (Exception ex) { Debug.WriteLine(ex); }
+            var schaetz = OfflineManager.SchaetzeTour(t.Route, _fotos);
+            double mb = schaetz.Bytes / 1024.0 / 1024.0;
+            bool los = await DisplayAlert(t.Name,
+                L.T("region_schaetzung", schaetz.Kacheln, schaetz.Fotos, mb.ToString("0")),
+                L.T("region_laden_btn"), L.T("abbrechen"));
+            if (!los) return;
+            var quelle = MapQuellen.Quelle(Einst.Karte);
+            var prog = new Progress<(int done, int total, string phase)>(p =>
+                MainThread.BeginInvokeOnMainThread(() =>
+                    Status(L.T(p.phase == "fotos" ? "region_fortschritt_fotos" : "region_fortschritt_kacheln", p.done, p.total))));
+            string tourId = t.Id > 0 ? t.Id.ToString()
+                : $"gen-{t.Route[0].lat:F4}-{t.Route[0].lon:F4}";   // generierte Route: stabile Id aus dem Startpunkt
+            var erg = await Task.Run(() => OfflineManager.LadeTourAsync(tourId, t.Name, t.Route, quelle, _fotos, prog));
+            Status(null);
+            if (erg.Ok)
+                await DisplayAlert(L.T("offline_titel"),
+                    L.T("offline_paket_fertig", t.Name, erg.Kacheln, erg.Fotos, (erg.Bytes / 1024.0 / 1024.0).ToString("0")), L.T("ok"));
+            else
+                await DisplayAlert(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok"));
+        }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(null); }
+        finally { DlgOfflineBtn.IsEnabled = true; }
+    }
+
+    // Sehenswürdigkeiten-Fotos, die NAH (≤150 m) an einer berechneten Route liegen, als POI-Zeilen
+    // in den Dialog laden (die generierte Route hat keine Server-POIs). Quelle: die Foto-Punkte der
+    // Übersichtskarte (bei Bedarf nachgeladen). Tipp auf ein Foto zeigt es groß (über PoiZeile).
+    private async Task GenFotosLaden(List<(double lat, double lon)> route)
+    {
+        try { if (_fotos.Count == 0) _fotos = await FotoService.LadeAsync(); }
+        catch (Exception ex) { Debug.WriteLine(ex); }
+        if (_gewaehlt == null || _gewaehlt.Id >= 0) return;   // Dialog inzwischen gewechselt
+        if (route.Count < 2 || _fotos.Count == 0) return;
+
+        // grobe Vorfilterung per Bounding-Box (+ ~300 m Rand), dann Abstand zum Routen-Polygonzug.
+        double minLa = 90, maxLa = -90, minLo = 180, maxLo = -180;
+        foreach (var p in route)
+        {
+            if (p.lat < minLa) minLa = p.lat; if (p.lat > maxLa) maxLa = p.lat;
+            if (p.lon < minLo) minLo = p.lon; if (p.lon > maxLo) maxLo = p.lon;
+        }
+        const double rand = 0.003;
+        var treffer = new List<(FotoPunkt f, int dist)>();
+        foreach (var f in _fotos)
+        {
+            if (f.Lat < minLa - rand || f.Lat > maxLa + rand || f.Lon < minLo - rand || f.Lon > maxLo + rand) continue;
+            double best = double.MaxValue;
+            for (int i = 1; i < route.Count; i++)
+            {
+                double d = NavGeo.DistanzZuSegment(f.Lat, f.Lon, route[i - 1], route[i]);
+                if (d < best) best = d;
+                if (best <= 40) break;
+            }
+            if (best <= 150) treffer.Add((f, (int)best));
+        }
+        if (treffer.Count == 0) return;
+        treffer.Sort((a, b) => a.dist.CompareTo(b.dist));   // nächstgelegene zuerst
+
+        DlgPoiTitel.IsVisible = true;
+        var gesehen = new HashSet<string>();
+        int n = 0;
+        foreach (var (f, dist) in treffer)
+        {
+            if (!gesehen.Add(f.Url)) continue;   // dasselbe Foto nicht doppelt
+            string name = !string.IsNullOrWhiteSpace(f.Text) ? f.Text : f.Tour;
+            DlgPois.Add(PoiZeile(new TourPoi(name, f.Tour, f.Url, f.Lat, f.Lon, dist, f.Id)));
+            if (++n >= 12) break;
+        }
     }
 
     private async Task PoisLaden(int id)
@@ -601,9 +761,8 @@ public partial class UebersichtPage : ContentPage
         };
         if (!string.IsNullOrEmpty(p.Bild))
         {
-            var url = p.Bild.StartsWith("http") ? p.Bild : AppConfig.ApiBase + p.Bild;
             var bild = new Image { Aspect = Aspect.AspectFill, WidthRequest = 44, HeightRequest = 44 };
-            try { bild.Source = ImageSource.FromUri(new Uri(url)); } catch (Exception ex) { Debug.WriteLine(ex); }
+            try { bild.Source = Bildquelle(p.Id, p.Bild); } catch (Exception ex) { Debug.WriteLine(ex); }
             rahmen.Content = bild;
         }
         else   // kein Foto → Anfangsbuchstabe als Platzhalter (wie die .ph-Box im Web)
@@ -633,22 +792,21 @@ public partial class UebersichtPage : ContentPage
 
         grid.Children.Add(rahmen);
         grid.Children.Add(texte);
-        // Tipp auf eine Sehenswürdigkeit mit Foto → das Bild groß in einem Popup zeigen.
+        // Tipp auf eine Sehenswürdigkeit mit Foto → das Bild groß in einem Popup zeigen (offline-fähig per Id).
         if (!string.IsNullOrEmpty(p.Bild))
         {
-            var bildUrl = p.Bild.StartsWith("http") ? p.Bild : AppConfig.ApiBase + p.Bild;
             var tap = new TapGestureRecognizer();
-            tap.Tapped += (s, e) => _ = BildBetrachten(bildUrl, p.Name);
+            tap.Tapped += (s, e) => _ = BildBetrachten(p.Bild, p.Name, p.Id);
             grid.GestureRecognizers.Add(tap);
         }
         return grid;
     }
 
-    // Zeigt ein Bild (Sehenswürdigkeit) groß in einem eigenen Modal-Popup.
-    private async Task BildBetrachten(string url, string titel)
+    // Zeigt ein Bild (Sehenswürdigkeit) groß in einem eigenen Modal-Popup (offline-fähig per Foto-Id).
+    private async Task BildBetrachten(string url, string titel, int id = 0)
     {
         var bild = new Image { Aspect = Aspect.AspectFit, VerticalOptions = LayoutOptions.Fill, HorizontalOptions = LayoutOptions.Fill };
-        try { bild.Source = ImageSource.FromUri(new Uri(url)); } catch (Exception ex) { Debug.WriteLine(ex); }
+        try { bild.Source = Bildquelle(id, url); } catch (Exception ex) { Debug.WriteLine(ex); }
         var titelLabel = new Label
         {
             Text = titel, TextColor = Microsoft.Maui.Graphics.Colors.White, FontSize = 14,
@@ -688,6 +846,10 @@ public partial class UebersichtPage : ContentPage
         _dlgMap.Layers.Add(_dlgRouteLayer);
         DlgMap.Map = _dlgMap;
         DlgMap.UseDoubleTap = false;   // Tipps reagieren sofort (kein 200-ms-Doppeltipp-Warten)
+        // Sobald die Dialog-Karte ihre Größe bekommt (beim ersten Öffnen ist sie noch 0 groß, weil
+        // der Dialog gerade erst sichtbar wird), zuverlässig auf die Route zoomen – sonst bleibt der
+        // obere Kartenbereich beim ersten Öffnen leer (betraf v. a. die berechneten Routen).
+        DlgMap.SizeChanged += (s, e) => DlgZoomAnwenden();
     }
 
     // Zeichnet die Route der Tour in die Dialog-Karte und zoomt darauf. Liefert true, wenn eine
@@ -720,16 +882,28 @@ public partial class UebersichtPage : ContentPage
         // Etwas Rand um die Route lassen (12 % + 50 m), damit Start/Ziel nicht am Kartenrand kleben.
         double padx = (maxx - minx) * 0.12 + 50, pady = (maxy - miny) * 0.12 + 50;
         _dlgBox = new MRect(minx - padx, miny - pady, maxx + padx, maxy + pady);
-        // Sofort zoomen UND kurz danach erneut: beim ersten Öffnen hat die MapControl noch keine
-        // Größe (Dialog wird gerade sichtbar), darum greift erst das verzögerte Nachzoomen.
+        // Zoomen, sobald die Mini-Karte eine Größe hat: beim ERSTEN Öffnen ist sie noch 0 px groß
+        // (der Dialog wird gerade erst sichtbar). DlgZoomAnwenden wiederholt sich selbst, bis die
+        // Karte gemessen ist; zusätzlich löst der SizeChanged-Hook den Zoom beim Sichtbarwerden aus.
         DlgZoomAnwenden();
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(250), DlgZoomAnwenden);
         return true;
     }
 
-    private void DlgZoomAnwenden()
+    // Zoomt die Dialog-Mini-Karte auf die Routen-Box. Robust gegen den Fall, dass die MapControl
+    // beim ersten Öffnen noch KEINE Größe hat: ohne gültige Viewport-Größe würde ZoomToBox eine
+    // kaputte (unendliche) Auflösung erzeugen → leere Karte. Darum erst zoomen, wenn die Karte
+    // gemessen ist; sonst kurz später erneut versuchen (begrenzte Versuchszahl). Dieser Schutz fängt
+    // auch den SizeChanged-Hook ab, der beim Schließen (Größe → 0) sonst die Auflösung zerstören würde.
+    private void DlgZoomAnwenden(int versuche = 8)
     {
         if (_dlgMap == null || _dlgBox == null) return;
+        var vp = _dlgMap.Navigator.Viewport;
+        if (vp.Width < 1 || vp.Height < 1)
+        {
+            if (versuche > 0)
+                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(60), () => DlgZoomAnwenden(versuche - 1));
+            return;
+        }
         try { _dlgMap.Navigator.ZoomToBox(_dlgBox); _dlgMap.RefreshGraphics(); }
         catch (Exception ex) { Debug.WriteLine(ex); }
     }

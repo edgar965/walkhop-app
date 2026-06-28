@@ -62,6 +62,16 @@
             <Label x:Name="UeStatus" FontSize="12" FontAttributes="Bold" TextColor="#475569" />
         </Border>
 
+        <!-- „Berechnete Routen löschen": gut sichtbarer roter Knopf oben links – erscheint nur, wenn
+             selbst errechnete Rundwanderungen auf der Karte liegen, und entfernt sie wieder. -->
+        <Button x:Name="GenLoeschenBtn" AutomationId="osm_gen_loeschen" IsVisible="False"
+                Text="{loc:Translate ue_gen_loeschen}" Clicked="OnGenLoeschen"
+                VerticalOptions="Start" HorizontalOptions="Start" Margin="9,12,0,0"
+                BackgroundColor="#e2231a" TextColor="White" CornerRadius="18" Padding="14,6"
+                FontSize="13" FontAttributes="Bold">
+            <Button.Shadow><Shadow Brush="Black" Opacity="0.2" Radius="8" Offset="0,3" /></Button.Shadow>
+        </Button>
+
         <!-- Aufklapp-Fenster (maps.me-Stil): Suche + Umkreis + Radius + Filter-Chips -->
         <Border x:Name="StartSheet" HorizontalOptions="Fill" VerticalOptions="End"
                 BackgroundColor="White" StrokeThickness="0" StrokeShape="RoundRectangle 20,20,0,0">
@@ -151,6 +161,7 @@
             </BoxView>
             <Border VerticalOptions="Center" HorizontalOptions="Center" Margin="20" BackgroundColor="White"
                     StrokeThickness="0" StrokeShape="RoundRectangle 16" MaximumWidthRequest="460">
+              <Grid>
                 <ScrollView MaximumHeightRequest="560">
                     <VerticalStackLayout Padding="0,0,0,16" Spacing="0">
                         <!-- Mini-Karte oben mit der GPS-Route (wie im Web-Detail-Dialog); in DialogZeigen befüllt -->
@@ -163,7 +174,11 @@
                             <Label x:Name="DlgBeschr" FontSize="14" TextColor="#334155" />
                             <Button AutomationId="osm_dialog_navi" Text="{loc:Translate ue_dlg_navi}" Clicked="OnDialogNavigieren"
                                     BackgroundColor="#0d9488" TextColor="White" CornerRadius="12" Margin="0,6,0,0" />
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <!-- Tour offline speichern: Kacheln entlang der Route + verkleinerte Fotos der Tour -->
+                            <Button x:Name="DlgOfflineBtn" AutomationId="osm_dialog_offline" Text="{loc:Translate dlg_offline_btn}" Clicked="OnDialogOffline"
+                                    BackgroundColor="#0c4a6e" TextColor="White" CornerRadius="12" />
+                            <!-- GPX/Termine nur für echte Server-Touren; bei selbst errechneten Rundwanderungen ausgeblendet. -->
+                            <Grid x:Name="DlgExternGrid" ColumnDefinitions="*,*" ColumnSpacing="8">
                                 <Button Grid.Column="0" AutomationId="osm_dialog_gpx" Text="{loc:Translate ue_dlg_gpx}" Clicked="OnDialogGpx"
                                         BackgroundColor="#334155" TextColor="White" CornerRadius="12" />
                                 <Button Grid.Column="1" AutomationId="osm_dialog_details" Text="{loc:Translate ue_dlg_termine}" Clicked="OnDialogTermine"
@@ -171,12 +186,23 @@
                             </Grid>
                             <Label x:Name="DlgPoiTitel" Text="{loc:Translate ue_dlg_poi_titel}" FontSize="14"
                                    FontAttributes="Bold" TextColor="#0f172a" IsVisible="False" Margin="0,6,0,0" />
+                            <!-- Kein unterer „Schließen"-Knopf mehr: oben rechts gibt es das X (osm_dialog_x),
+                                 zusätzlich schließt ein Tipp auf den abgedunkelten Hintergrund (beide → OnDialogZu).
+                                 So bleibt der Dialog so niedrig wie sein Inhalt (kein großer weißer Bereich). -->
                             <VerticalStackLayout x:Name="DlgPois" Spacing="6" />
-                            <Button AutomationId="osm_dialog_zu" Text="{loc:Translate schliessen}" Clicked="OnDialogZu"
-                                    BackgroundColor="#f1f5f9" TextColor="#475569" CornerRadius="12" Margin="0,6,0,0" />
                         </VerticalStackLayout>
                     </VerticalStackLayout>
                 </ScrollView>
+                <!-- Schließen-X oben rechts über dem Dialog (dunkler, halbtransparenter Kreis – sichtbar
+                     über Mini-Karte/Titelbild wie auch über weißem Hintergrund). -->
+                <Border AutomationId="osm_dialog_x" HorizontalOptions="End" VerticalOptions="Start" Margin="0,10,10,0"
+                        WidthRequest="34" HeightRequest="34" BackgroundColor="#cc0f172a" StrokeThickness="0"
+                        StrokeShape="RoundRectangle 17">
+                    <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnDialogZu" /></Border.GestureRecognizers>
+                    <Label Text="✕" TextColor="White" FontSize="16" FontAttributes="Bold"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+              </Grid>
             </Border>
         </Grid>
     </Grid>
