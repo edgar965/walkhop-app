@@ -30,7 +30,7 @@ public partial class App : Application
 		window.Stopped += async (_, _) =>
 		{
 			try { WalkHop.MainPage.AktiveAufnahmeSichern(); await AufnahmeService.UploadeAusstehendAsync(); }
-			catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+			catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Aufnahme sichern", ex); }
 		};
 		return window;
 	}
@@ -66,6 +66,6 @@ public partial class App : Application
 
 			Einst.ErstkonfigErledigt = true;
 		}
-		catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+		catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Ersteinrichtung", ex); }
 	}
 }

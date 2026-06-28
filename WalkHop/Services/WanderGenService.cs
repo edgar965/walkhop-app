@@ -27,7 +27,7 @@ public static class WanderGenService
             if (!resp.IsSuccessStatusCode) return new List<GenWanderung>();
             return ParseVorschlaege(roh);   // Parsen separat → unit-testbar
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); return new List<GenWanderung>(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Wanderung erzeugen", ex); return new List<GenWanderung>(); }
     }
 
     /// <summary>Parst die Vorschläge aus dem rohen JSON-String (separat von der HTTP-Methode,

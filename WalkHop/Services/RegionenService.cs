@@ -25,7 +25,7 @@ public static class RegionenService
             var roh = await _http.GetStringAsync(AppConfig.ApiBase + "/navi/karten.json");
             return ParseRegionen(roh);   // Parsen separat → unit-testbar
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); return new List<KartenRegion>(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Regionen laden", ex); return new List<KartenRegion>(); }
     }
 
     /// <summary>Parst die Regionen aus dem rohen JSON-String (separat von der HTTP-Methode,

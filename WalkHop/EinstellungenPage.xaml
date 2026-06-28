@@ -153,6 +153,9 @@
                             </Grid>
                         </VerticalStackLayout>
                     </Border>
+                    <!-- Dauerhaft „ignorierte“ Fehler wieder anzeigen lassen -->
+                    <Button Text="{loc:Translate einst_fehler_reset_btn}" Clicked="OnFehlerReset"
+                            BackgroundColor="#64748b" TextColor="White" CornerRadius="10" />
                 </VerticalStackLayout>
 
                 <!-- ================= Tab 2: Navigation ================= -->

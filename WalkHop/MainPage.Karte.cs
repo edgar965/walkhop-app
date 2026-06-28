@@ -36,7 +36,7 @@ public partial class MainPage
         if (_tourenGezeichnet) return;
         _tourenGezeichnet = true;
         try { _touren = await TourService.LadeTourenAsync(); }
-        catch (Exception ex) { Debug.WriteLine(ex); _tourenGezeichnet = false; return; }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Touren laden", ex); _tourenGezeichnet = false; return; }
         var features = await Task.Run(() => BaueTourFeatures(_touren));
         _tourLayer.Features = features;
         _tourLayer.DataHasChanged();

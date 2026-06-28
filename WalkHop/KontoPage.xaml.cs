@@ -76,6 +76,6 @@ public partial class KontoPage : ContentPage
         // Stufe 2: In-App-Kauf (StoreKit/Play Billing). Vorerst Hinweis + Web-Kauf.
         bool web = await DisplayAlert(L.T("premium_titel"), L.T("premium_text"),
             L.T("premium_website"), L.T("schliessen"));
-        if (web) { try { await Launcher.OpenAsync("https://spin1more.com/konto/"); } catch { } }
+        if (web) { try { await Launcher.OpenAsync("https://spin1more.com/konto/"); } catch (Exception ex) { Meldung.Fehler("Website öffnen", ex); } }
     }
 }

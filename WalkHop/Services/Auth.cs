@@ -56,7 +56,7 @@ public static class Auth
         RouteService.TokenProvider = () => _token;   // Token an Routing-Anfragen anhängen (Metering)
         PoiService.TokenProvider = () => _token;      // Token an POI-Textsuche anhängen (Such-Metering)
         try { _token = await SecureStorage.Default.GetAsync("apptoken"); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Konto-Token laden", ex); }
         if (string.IsNullOrEmpty(_token)) await GeraetKontoAsync();
         else _ = AktualisiereAsync();
     }
@@ -69,7 +69,7 @@ public static class Auth
                 new StringContent("{}", Encoding.UTF8, "application/json"));
             if (resp.IsSuccessStatusCode) await StatusUebernehmen(await resp.Content.ReadAsStringAsync());
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Geräte-Konto anlegen", ex); }
     }
 
     public static async Task AktualisiereAsync()
@@ -82,7 +82,7 @@ public static class Auth
             using var resp = await _http.SendAsync(req);
             if (resp.IsSuccessStatusCode) await StatusUebernehmen(await resp.Content.ReadAsStringAsync());
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Konto-Status laden", ex); }
     }
 
     /// <summary>Login bestehender Nutzer. Gibt null bei Erfolg, sonst die Fehlermeldung.</summary>
@@ -134,12 +134,12 @@ public static class Auth
                 req.Headers.Add("Authorization", "Token " + _token);
                 await _http.SendAsync(req);
             }
-            catch (Exception ex) { Debug.WriteLine(ex); }
+            catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Abmelden", ex); }
         }
         _token = null;
         // Ausnahme hier (z. B. Keystore/Plattform-Fehler) darf den Logout NICHT abbrechen.
         try { SecureStorage.Default.Remove("apptoken"); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Token löschen", ex); }
         // ALLE konto-/profilgebundenen Werte löschen – inkl. lokal gemerktem Namen
         // (sonst sähe der nächste Nutzer auf einem geteilten Gerät den Namen des vorigen)
         // und Gratis-Kontingent (sonst bliebe ein erhöhtes Premium-Limit stehen).
@@ -162,7 +162,7 @@ public static class Auth
             if (r.TryGetProperty("token", out var t) && t.ValueKind == JsonValueKind.String)
             {
                 _token = t.GetString();
-                try { await SecureStorage.Default.SetAsync("apptoken", _token!); } catch (Exception ex) { Debug.WriteLine(ex); }
+                try { await SecureStorage.Default.SetAsync("apptoken", _token!); } catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Token speichern", ex); }
             }
             string altEmail = Email;   // für Konto-/Email-Wechsel-Erkennung (Namen-Reset)
             if (r.TryGetProperty("anonym", out var a)) Anonym = a.ValueKind == JsonValueKind.True;
@@ -186,8 +186,8 @@ public static class Auth
             if (r.TryGetProperty("credits_routen", out var cr) && cr.ValueKind == JsonValueKind.Number) CreditsRouten = cr.GetInt32();
             if (r.TryGetProperty("offline_gekauft", out var of) && of.ValueKind == JsonValueKind.Number) OfflineGekauft = of.GetInt32();
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Konto-Status verarbeiten", ex); }
         try { MainThread.BeginInvokeOnMainThread(() => StatusGeaendert?.Invoke()); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Konto-Status melden", ex); }
     }
 }

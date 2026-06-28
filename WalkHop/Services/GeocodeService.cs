@@ -26,7 +26,7 @@ public static class GeocodeService
             var liste = Parse(roh);
             return liste.Count > 0 && !string.IsNullOrEmpty(liste[0].Name) ? liste[0].Name : null;
         }
-        catch (Exception ex) { Debug.WriteLine(ex); return null; }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Geocoding", ex); return null; }
     }
 
     public static List<GeoOrt> Parse(string roh)

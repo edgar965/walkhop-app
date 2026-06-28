@@ -23,7 +23,7 @@ public partial class UebersichtPage
             if (_fotoAn && _fotos.Count == 0)              // Fotos beim Start aktiviert → vor dem Zeichnen laden
             {
                 try { _fotos = await FotoService.LadeAsync(); }
-                catch (Exception ex) { Debug.WriteLine(ex); }
+                catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Fotos laden", ex); }
             }
             Anwenden();                                    // Filtern + Zeichnen ebenfalls off-thread
         }

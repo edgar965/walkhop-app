@@ -306,7 +306,7 @@ public partial class MainPage
                 }
             }
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Route neu berechnen", ex); }
         finally { _reroutLaeuft = false; _letztRerouteMs = Environment.TickCount64; }   // auch nach Fehler 6 s Ruhe
     }
 
@@ -348,7 +348,7 @@ public partial class MainPage
             }
             else HoeheBlock.IsVisible = false;   // keine Höhendaten → Block ausblenden
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Höhenprofil laden", ex); }
     }
 
     // ---- Aufklapp-Schublade (maps.me-Stil): halbhoch, Griff tippen = zu/auf, wischen = ziehen ----
@@ -426,7 +426,7 @@ public partial class MainPage
             if (_ttsLocale != null && _ttsLocaleFuer == Einst.NaviSprache) opt.Locale = _ttsLocale;
             _ = TextToSpeech.Default.SpeakAsync(text, opt);
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Sprachansage", ex); }
     }
 
     // Ansage-Text in der NAVIGATIONS-Sprache (nicht in der App-Oberflächensprache). Die gesprochenen
@@ -448,14 +448,14 @@ public partial class MainPage
     {
         NavigationBeenden();
         try { await Shell.Current.GoToAsync("//start"); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Zur Startseite wechseln", ex); }
     }
 
     // „Zurück"-Knopf (nur in der Vorschau): zurück zur Start-/Übersichtsseite.
     private async void OnZurueck(object? sender, EventArgs e)
     {
         try { await Shell.Current.GoToAsync("//start"); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Zur Startseite wechseln", ex); }
     }
 
     private void NavigationBeenden()
@@ -576,7 +576,7 @@ public partial class MainPage
             var arr = liste.Select(z => new { z.lat, z.lon, z.name });
             Preferences.Set("ziele", System.Text.Json.JsonSerializer.Serialize(arr));
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Letztes Ziel speichern", ex); }
     }
 
     private List<(double lat, double lon, string name)> LetzteZiele()

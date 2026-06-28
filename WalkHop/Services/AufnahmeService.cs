@@ -40,7 +40,7 @@ public static class AufnahmeService
     public static int AnzahlAusstehend()
     {
         try { return Directory.Exists(PendingDir) ? Directory.GetFiles(PendingDir, "*.json").Length : 0; }
-        catch (Exception ex) { Debug.WriteLine(ex); return 0; }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Ausstehende Aufnahmen zählen", ex); return 0; }
     }
 
     /// <summary>Liefert true, wenn das Gerät gerade über WLAN verbunden ist. Für die Einstellung
@@ -70,10 +70,10 @@ public static class AufnahmeService
                     var json = File.ReadAllText(f);
                     if (await Auth.SendeAufnahmeAsync(json)) { File.Delete(f); n++; }
                 }
-                catch (Exception ex) { Debug.WriteLine(ex); }
+                catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Aufnahme hochladen", ex); }
             }
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Aufnahmen-Upload", ex); }
         return n;
     }
 

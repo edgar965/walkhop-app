@@ -70,7 +70,7 @@ public static class OfflineFotos
                 foreach (var f in Directory.EnumerateFiles(Verzeichnis, "*.jpg"))
                     b += new FileInfo(f).Length;
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Foto-Speichergröße berechnen", ex); }
         return b;
     }
 
@@ -78,6 +78,6 @@ public static class OfflineFotos
     public static void Leeren()
     {
         try { if (Directory.Exists(Verzeichnis)) Directory.Delete(Verzeichnis, true); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Offline-Fotos löschen", ex); }
     }
 }

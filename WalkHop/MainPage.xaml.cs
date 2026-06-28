@@ -260,7 +260,7 @@ public partial class MainPage : ContentPage
                 var s = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
                 if (s != PermissionStatus.Granted) await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
             }
-            catch (Exception ex) { Debug.WriteLine(ex); }
+            catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Standortberechtigung prüfen", ex); }
         }
         await GpsStart();
         KompassStart();

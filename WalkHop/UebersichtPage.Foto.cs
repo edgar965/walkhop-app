@@ -49,7 +49,7 @@ public partial class UebersichtPage
     private async Task FotoBetrachten(FotoPunkt foto)
     {
         var bild = new Image { Aspect = Aspect.AspectFit, VerticalOptions = LayoutOptions.Fill, HorizontalOptions = LayoutOptions.Fill };
-        try { bild.Source = Bildquelle(foto.Id, foto.Url); } catch (Exception ex) { Debug.WriteLine(ex); }
+        try { bild.Source = Bildquelle(foto.Id, foto.Url); } catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Foto anzeigen", ex); }
         string bu = !string.IsNullOrWhiteSpace(foto.Text) ? foto.Text : foto.Tour;
         var titel = new Label { Text = bu, TextColor = Microsoft.Maui.Graphics.Colors.White, FontSize = 14,
                                 Padding = new Thickness(14, 10), BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#003153"),

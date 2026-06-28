@@ -74,7 +74,7 @@ public class Lokalisierung : INotifyPropertyChanged
         // „Item[]" aktualisiert ALLE Indexer-Bindings (alle {loc:Translate …}); Sprache für direkte Bindings.
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Sprache)));
-        try { Geaendert?.Invoke(); } catch (System.Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        try { Geaendert?.Invoke(); } catch (System.Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Sprache anwenden", ex); }
     }
 }
 

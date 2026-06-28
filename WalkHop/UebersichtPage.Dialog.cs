@@ -76,7 +76,7 @@ public partial class UebersichtPage
             else
                 await DisplayAlert(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok"));
         }
-        catch (Exception ex) { Debug.WriteLine(ex); Status(null); }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(null); Meldung.Fehler("Tour offline speichern", ex); }
         finally { DlgOfflineBtn.IsEnabled = true; }
     }
 
@@ -136,7 +136,7 @@ public partial class UebersichtPage
             foreach (var p in pois.Take(12))
                 DlgPois.Add(PoiZeile(p));
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Sehenswürdigkeiten laden", ex); }
     }
 
     // Eine Sehenswürdigkeit-Zeile: Foto-Thumbnail (44×44, abgerundet) links neben Name + Distanz,
@@ -204,7 +204,7 @@ public partial class UebersichtPage
     private async Task BildBetrachten(string url, string titel, int id = 0, int distM = 0)
     {
         var bild = new Image { Aspect = Aspect.AspectFit, VerticalOptions = LayoutOptions.Fill, HorizontalOptions = LayoutOptions.Fill };
-        try { bild.Source = Bildquelle(id, url); } catch (Exception ex) { Debug.WriteLine(ex); }
+        try { bild.Source = Bildquelle(id, url); } catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Foto anzeigen", ex); }
         // Entfernung der Sehenswürdigkeit/des Fotos von der Route in die Bildunterschrift schreiben.
         string unterschrift = distM > 0 ? $"{titel}\n📍 {L.T("poi_dist", distM)}" : titel;
         var titelLabel = new Label
@@ -328,7 +328,7 @@ public partial class UebersichtPage
     {
         if (_gewaehlt == null) return;
         try { await Launcher.OpenAsync(AppConfig.ApiBase + $"/ausfluege/{_gewaehlt.Id}/route.gpx"); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("GPX öffnen", ex); }
     }
 
     private async void OnDialogTermine(object? sender, EventArgs e)
@@ -336,7 +336,7 @@ public partial class UebersichtPage
         if (_gewaehlt == null || string.IsNullOrEmpty(_gewaehlt.DetailUrl)) return;
         var url = _gewaehlt.DetailUrl.StartsWith("http") ? _gewaehlt.DetailUrl : AppConfig.ApiBase + _gewaehlt.DetailUrl;
         try { await Launcher.OpenAsync(url); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Termine öffnen", ex); }
     }
 
     private async void OnDialogNavigieren(object? sender, EventArgs e)

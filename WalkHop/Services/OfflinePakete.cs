@@ -24,7 +24,7 @@ public static class OfflinePakete
             var roh = File.ReadAllText(Datei);
             return JsonSerializer.Deserialize<List<OfflinePaket>>(roh) ?? new();
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); return new(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Offline-Pakete laden", ex); return new(); }
     }
 
     private static void Speichern(List<OfflinePaket> liste)
@@ -34,7 +34,7 @@ public static class OfflinePakete
             Directory.CreateDirectory(OfflineKarte.CacheDir);
             File.WriteAllText(Datei, JsonSerializer.Serialize(liste));
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Offline-Paket speichern", ex); }
     }
 
     /// <summary>Paket hinzufügen oder (gleiche Id) ersetzen.</summary>
@@ -61,6 +61,6 @@ public static class OfflinePakete
     public static void AllesLeeren()
     {
         try { if (File.Exists(Datei)) File.Delete(Datei); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Offline-Pakete löschen", ex); }
     }
 }

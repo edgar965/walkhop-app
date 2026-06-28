@@ -41,7 +41,7 @@ public static class GruppeService
             using var resp = await _http.SendAsync(req);
             return resp.IsSuccessStatusCode;
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); return false; }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Position in Gruppe teilen", ex); return false; }
     }
 
     /// <summary>Holt die aktuellen Mitglieder-Positionen der Gruppe (GET). Leere Liste bei Fehler.</summary>
@@ -69,7 +69,7 @@ public static class GruppeService
                 liste.Add(new GruppenMitglied(name, la.GetDouble(), ln.GetDouble(), alter));
             }
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); Meldung.Fehler("Gruppenmitglieder laden", ex); }
         return liste;
     }
 }

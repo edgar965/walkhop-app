@@ -69,7 +69,7 @@ public partial class UebersichtPage
                 Text = L.T("gruppe_teilen_text", GruppeLive.TeilenLink(GruppeLive.Code)),
             });
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Einladung teilen", ex); }
     }
 
     private async Task GruppeNameAendern()

@@ -29,6 +29,10 @@ public static class Texte
 
         // Gemeinsame Begriffe / Dialog-Knöpfe
         ["abbrechen"] = "Abbrechen",
+        ["fehler_titel"] = "Fehler",
+        ["fehler_ignorieren"] = "Diesen Fehler ignorieren",
+        ["einst_fehler_reset_btn"] = "🔕 Ignorierte Fehler zurücksetzen",
+        ["einst_fehler_reset_ok"] = "Ignorierte Fehler wurden zurückgesetzt.",
         ["ok"] = "OK",
         ["ja"] = "Ja",
         ["nein"] = "Nein",
@@ -370,6 +374,10 @@ public static class Texte
 
         // Common terms / dialog buttons
         ["abbrechen"] = "Cancel",
+        ["fehler_titel"] = "Error",
+        ["fehler_ignorieren"] = "Ignore this error",
+        ["einst_fehler_reset_btn"] = "🔕 Reset ignored errors",
+        ["einst_fehler_reset_ok"] = "Ignored errors have been reset.",
         ["ok"] = "OK",
         ["ja"] = "Yes",
         ["nein"] = "No",

@@ -276,7 +276,7 @@ public partial class MainPage
             int dauer = (int)(DateTime.Now - _aufnahmeStart).TotalSeconds;
             AufnahmeService.SpeichereLokal(kopie, L.T("aufnahme_name", DateTime.Now.ToString("dd.MM. HH:mm")), dauer);
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Aufnahme speichern", ex); }
     }
 
     /// <summary>Statischer Einsprung fürs App-Lebenszyklus: laufende Aufnahme sichern (vor Upload).</summary>

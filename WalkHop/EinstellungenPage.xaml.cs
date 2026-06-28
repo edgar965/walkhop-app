@@ -65,7 +65,7 @@ public partial class EinstellungenPage : ContentPage
         L.Geaendert += SpracheAngewendet;
         CacheGroesseAnzeigen();
         StandardPunktAnzeigen();
-        try { await Auth.AktualisiereAsync(); } catch (Exception ex) { Debug.WriteLine(ex); }
+        try { await Auth.AktualisiereAsync(); } catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Konto laden", ex); }
         KontoAnzeigen();
     }
 
@@ -104,6 +104,14 @@ public partial class EinstellungenPage : ContentPage
     private void OnAutoAufnahme(object? sender, ToggledEventArgs e) { if (!_laedt) Einst.AutoAufnahme = e.Value; }
     private void OnFotosStart(object? sender, ToggledEventArgs e) { if (!_laedt) Einst.FotosBeimStart = e.Value; }
     private void OnFotosWlan(object? sender, ToggledEventArgs e) { if (!_laedt) Einst.FotosNurWlan = e.Value; }
+
+    // „Ignorierte Fehler zurücksetzen": dauerhaft unterdrückte Fehlerarten wieder freigeben,
+    // sodass sie erneut als Dialog erscheinen. Kurze Bestätigung anzeigen.
+    private async void OnFehlerReset(object? sender, EventArgs e)
+    {
+        Meldung.IgnorierteZuruecksetzen();
+        await DisplayAlert(L.T("nav_einstellungen"), L.T("einst_fehler_reset_ok"), L.T("ok"));
+    }
 
     private void OnSpracheWechseln(object? sender, TappedEventArgs e)
     {
@@ -455,7 +463,7 @@ public partial class EinstellungenPage : ContentPage
             if (Directory.Exists(OfflineKarte.CacheDir))
                 Directory.Delete(OfflineKarte.CacheDir, true);
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Offline-Cache leeren", ex); }
         CacheGroesseAnzeigen();
     }
 
@@ -516,6 +524,6 @@ public partial class EinstellungenPage : ContentPage
     {
         bool web = await DisplayAlert(L.T("premium_titel"), L.T("premium_text"),
             L.T("premium_website"), L.T("schliessen"));
-        if (web) { try { await Launcher.OpenAsync("https://spin1more.com/konto/"); } catch (Exception ex) { Debug.WriteLine(ex); } }
+        if (web) { try { await Launcher.OpenAsync("https://spin1more.com/konto/"); } catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Website öffnen", ex); } }
     }
 }
