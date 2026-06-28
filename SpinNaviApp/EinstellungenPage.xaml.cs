@@ -56,6 +56,7 @@ public partial class EinstellungenPage : ContentPage
     {
         base.OnAppearing();
         CacheGroesseAnzeigen();
+        StandardPunktAnzeigen();
         try { await Auth.AktualisiereAsync(); } catch (Exception ex) { Debug.WriteLine(ex); }
         KontoAnzeigen();
     }
@@ -262,6 +263,40 @@ public partial class EinstellungenPage : ContentPage
     }
 
     private bool _laedtOffline;
+
+    // ---- Standard-Punkt (Bezugspunkt für Entfernungsanzeige) ----
+    private void StandardPunktAnzeigen()
+    {
+        StandardPunktLabel.Text = $"{Einst.StandardName}: {Einst.StandardLat:0.0000}, {Einst.StandardLng:0.0000}";
+    }
+
+    private async void OnStandardAufPosition(object? sender, EventArgs e)
+    {
+        StandardAufPositionBtn.IsEnabled = false;
+        try
+        {
+            var loc = await Geolocation.GetLastKnownLocationAsync()
+                      ?? await Geolocation.GetLocationAsync(new GeolocationRequest(GeolocationAccuracy.Medium, TimeSpan.FromSeconds(8)));
+            if (loc != null)
+            {
+                Einst.StandardLat = loc.Latitude;
+                Einst.StandardLng = loc.Longitude;
+                Einst.StandardName = "eigener Punkt";
+                StandardPunktAnzeigen();
+            }
+            else await DisplayAlert("Standard-Punkt", "Aktueller Standort nicht verfügbar.", "OK");
+        }
+        catch (Exception ex) { Debug.WriteLine(ex); }
+        finally { StandardAufPositionBtn.IsEnabled = true; }
+    }
+
+    private void OnStandardZuruecksetzen(object? sender, EventArgs e)
+    {
+        Einst.StandardLat = Einst.BrandenburgerTorLat;
+        Einst.StandardLng = Einst.BrandenburgerTorLng;
+        Einst.StandardName = "Berlin Mitte";
+        StandardPunktAnzeigen();
+    }
 
     private async void OnCacheLeeren(object? sender, EventArgs e)
     {

@@ -355,6 +355,19 @@
                         </VerticalStackLayout>
                     </Border>
 
+                    <Label Text="STANDARD-PUNKT" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="10">
+                            <Label Text="Bezugspunkt für die Entfernungsanzeige im Karten-Kontextmenü, wenn kein GPS-Standort verfügbar ist."
+                                   FontSize="12" TextColor="#94a3b8" />
+                            <Label x:Name="StandardPunktLabel" FontSize="14" TextColor="#0f172a" />
+                            <Button x:Name="StandardAufPositionBtn" Text="📍 Aktuellen Standort übernehmen" Clicked="OnStandardAufPosition"
+                                    BackgroundColor="#0d9488" TextColor="White" CornerRadius="10" />
+                            <Button Text="↺ Zurücksetzen (Brandenburger Tor)" Clicked="OnStandardZuruecksetzen"
+                                    BackgroundColor="#64748b" TextColor="White" CornerRadius="10" />
+                        </VerticalStackLayout>
+                    </Border>
+
                     <Label Text="OFFLINE-KARTEN" Style="{StaticResource Sec}" />
                     <Border Style="{StaticResource Card}">
                         <VerticalStackLayout Spacing="12">

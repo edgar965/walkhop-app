@@ -140,6 +140,11 @@ public partial class MainPage : ContentPage
         var (bx, by) = SphericalMercator.FromLonLat(13.405, 52.52);
         _map.Home = n => n.CenterOnAndZoomTo(new MPoint(bx, by), Aufloesung(HomeZoom));
         MapCtrl.Map = _map;
+        // maps.me-Stil: beim 2-Finger-Zoom NICHT mitdrehen (sonst unruhig). Die Karte dreht
+        // erst, wenn man bewusst über 30° verdreht – kleine Nebendrehungen beim Zoom werden
+        // ignoriert. Bewusstes Drehen funktioniert weiter.
+        MapCtrl.UnSnapRotationDegrees = 30;
+        MapCtrl.ReSnapRotationDegrees = 8;
         _map.Info += AufKarteTipp;
         // Bei Zoom-Änderung den (pixelgroßen) Positions-Chevron neu zeichnen, damit er
         // gleich groß bleibt – sonst behält er die Größe vom letzten GPS-Takt.
@@ -511,6 +516,7 @@ public partial class MainPage : ContentPage
         optionen.Add("🥾 Hierhin navigieren");
         optionen.Add("📍 Von hier starten");
         optionen.Add("➕ Zum Plan hinzufügen");
+        optionen.Add(Standort.EntfernungZeile(lat, lon, _letzteGeo));   // Info-Zeile vor „Abbrechen"
         // „Bereich offline laden" ist in Einstellungen → Karte umgezogen (dort als „Umgebung offline laden").
         string wahl = await DisplayActionSheet("Was möchtest du tun?", "Abbrechen", null, optionen.ToArray());
         if (wahl == "🧭 GPS-Route abwandern" && nah != null) await TourStarten(nah);
@@ -857,7 +863,25 @@ public partial class MainPage : ContentPage
         catch (Exception ex) { Debug.WriteLine(ex); }
     }
 
-    private void OnStop(object? sender, EventArgs e) => NavigationBeenden();
+    // „Stop" beendet die Turn-by-Turn-Navigation, kehrt aber zur Routen-VORSCHAU zurück
+    // (maps.me-Stil): Panel + Route bleiben sichtbar, der „Start"-Knopf erscheint wieder,
+    // damit man dieselbe Route neu starten oder ein neues Ziel wählen kann.
+    private void OnStop(object? sender, EventArgs e) => ZurueckZurVorschau();
+
+    private void ZurueckZurVorschau()
+    {
+        if (_navPunkte == null) { NavigationBeenden(); return; }   // ohne Route: ganz schließen
+        _navAktiv = false;
+        _folgen = false;
+        _letztGesprochen = -1; _zielAngesagt = false;
+        RichtungAus();               // lila Richtungspfeil entfernen (Vorschau zeigt keinen)
+        AnweisungBox.IsVisible = false;
+        NaviZustandAnzeigen();        // Start sichtbar, Stop/Peek-Stop weg, Vorschau an
+        NaviPanel.IsVisible = true;
+        SheetSetzen(true);            // Vorschau aufgeklappt zeigen
+        Status(null);
+        try { DeviceDisplay.Current.KeepScreenOn = false; } catch (Exception ex) { Debug.WriteLine(ex); }
+    }
 
     private void NavigationBeenden()
     {

@@ -92,6 +92,9 @@ public partial class UebersichtPage : ContentPage
         var (bx, by) = SphericalMercator.FromLonLat(13.405, 52.52);
         _map.Home = n => n.CenterOnAndZoomTo(new MPoint(bx, by), Aufloesung(9));
         UeMap.Map = _map;
+        // maps.me-Stil: beim 2-Finger-Zoom nicht mitdrehen (erst ab bewusster 30°-Drehung).
+        UeMap.UnSnapRotationDegrees = 30;
+        UeMap.ReSnapRotationDegrees = 8;
         _map.Info += OnKarteTipp;
         _map.Navigator.ViewportChanged += (s, e) => BeiViewportAenderung();
         // Langdruck → Kontextmenü sofort (Mapsuis eingebautes LongTap; e.ScreenPosition ist Mapsui-Screen).
@@ -401,6 +404,7 @@ public partial class UebersichtPage : ContentPage
         if (nah != null) optionen.Add("🧭 GPS-Route abwandern");
         optionen.Add("📍 GPS-Position");
         optionen.Add("📌 Marker setzen");
+        optionen.Add(Standort.EntfernungZeile(lat, lon, _letzteGeo));   // Info-Zeile vor „Abbrechen"
         string wahl = await DisplayActionSheet("Was möchtest du tun?", "Abbrechen", null, optionen.ToArray());
         if (wahl == "🧭 Navigation zu")
         {

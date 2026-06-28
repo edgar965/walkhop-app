@@ -27,6 +27,27 @@ public static class Einst
         set => Preferences.Set("folgen", value);
     }
 
+    // Standard-/Default-Punkt für die Entfernungsanzeige im Kontextmenü, wenn kein
+    // aktueller GPS-Standort verfügbar ist. Default: Berlin, Brandenburger Tor.
+    public const double BrandenburgerTorLat = 52.5163;
+    public const double BrandenburgerTorLng = 13.3777;
+    public static double StandardLat
+    {
+        get => Preferences.Get("std_lat", BrandenburgerTorLat);
+        set => Preferences.Set("std_lat", value);
+    }
+    public static double StandardLng
+    {
+        get => Preferences.Get("std_lng", BrandenburgerTorLng);
+        set => Preferences.Set("std_lng", value);
+    }
+    /// <summary>Anzeigename des Standard-Punkts (z. B. „Berlin Mitte" / „eigener Punkt").</summary>
+    public static string StandardName
+    {
+        get => Preferences.Get("std_name", "Berlin Mitte");
+        set => Preferences.Set("std_name", value);
+    }
+
     /// <summary>Kartenmodus (Wandern=Default wie in der Web-Navi).</summary>
     public static Kartenmodus Karte
     {
