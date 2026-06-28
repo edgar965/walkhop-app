@@ -42,6 +42,9 @@ public partial class MainPage : ContentPage
     private Mapsui.Map _map = null!;
     private MemoryLayer _positionLayer = null!;   // dezenter grüner Positions-Chevron (Blickrichtung)
     private MemoryLayer _routeLayer = null!;
+    private MemoryLayer _tourLayer = null!;        // alle GPS-Tour-Routen (zum Antippen → „abwandern")
+    private List<TourInfo> _touren = new();
+    private bool _tourenGezeichnet;
     private MemoryLayer _richtungLayer = null!;   // lila Richtungspfeil (Schaft + Spitze) voraus auf der Route
     private double _gezeichnetHeading = -999;     // zuletzt gezeichnete Blickrichtung (Redraw-Drosselung)
     private double _letzteRes = -1;               // zuletzt gezeichnete Auflösung (Chevron-Größen-Redraw)
@@ -64,6 +67,10 @@ public partial class MainPage : ContentPage
     private bool _zentrierenNaechsterFix = true;   // erster GPS-Fix (oder Zentrieren ohne Fix) → auf Position zoomen+ausrichten
     private long _letztViewportRedrawMs;           // Debounce für den Kegel-Redraw bei Zoom (gegen Ruckeln)
     private long _letztLangdruckMs;                // Zeitpunkt des letzten Karten-Langdrucks (entkoppelt Langdruck vom Tap)
+    // Zoom-Glättung: Route + Richtungspfeil (volle Vektor-Geometrie) während der Zoom-Geste ausblenden.
+    private double _letzteZoomRes = -1;
+    private bool _vektorenVerborgen;
+    private IDispatcherTimer? _zoomTimer;
     private bool _gpsLaeuft, _kompassLaeuft, _berechtigungGeprueft;
     private bool _positionsSchleifeLaeuft;   // genau eine Live-Positions-Schleife (umgeht den 50-m-Distanzfilter)
 
@@ -116,6 +123,9 @@ public partial class MainPage : ContentPage
         { Name = "Wanderwege", Enabled = Einst.Wanderwege };
         _map.Layers.Add(_wanderLayer);
         _modusJetzt = Einst.Karte; _profilJetzt = Einst.Profil;   // Ausgangszustand für den Einstellungs-Abgleich
+        // Tour-Routen-Overlay (unter der aktiven Route): dezent, antippbar zum „Abwandern".
+        _tourLayer = new MemoryLayer("Touren");
+        _map.Layers.Add(_tourLayer);
         _routeLayer = new MemoryLayer("Route");
         _map.Layers.Add(_routeLayer);
         // Lila Richtungspfeil: liegt ÜBER der (blauen) Route, aber UNTER dem Positionsmarker.
@@ -190,6 +200,7 @@ public partial class MainPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        TourenLaden();   // Tour-Routen-Overlay einmalig laden (antippbar zum „Abwandern")
         // Einstellungen, die sich zwischenzeitlich (Einstellungs-Seite) geändert haben können,
         // beim Zurückkehren auf die Karte anwenden.
         try { DeviceDisplay.Current.KeepScreenOn = Einst.BildschirmWach; } catch (Exception ex) { Debug.WriteLine(ex); }
@@ -226,6 +237,72 @@ public partial class MainPage : ContentPage
             GeplantesZiel = null;
             await RouteZu(ziel.lat, ziel.lon);
         }
+    }
+
+    // ---- Tour-Routen-Overlay (antippbar zum „Abwandern") ----
+    private async void TourenLaden()
+    {
+        if (_tourenGezeichnet) return;
+        _tourenGezeichnet = true;
+        try { _touren = await TourService.LadeTourenAsync(); }
+        catch (Exception ex) { Debug.WriteLine(ex); _tourenGezeichnet = false; return; }
+        var features = await Task.Run(() => BaueTourFeatures(_touren));
+        _tourLayer.Features = features;
+        _tourLayer.DataHasChanged();
+        _map.RefreshGraphics();
+    }
+
+    // Übersichts-Linie stark ausdünnen (~12 Punkte) – die volle Geometrie zieht erst das Abwandern.
+    private static List<IFeature> BaueTourFeatures(List<TourInfo> touren)
+    {
+        var features = new List<IFeature>();
+        foreach (var t in touren)
+        {
+            if (t.Route.Count < 2) continue;
+            const int maxPunkte = 12;
+            var route = t.Route;
+            int schritt = route.Count <= maxPunkte ? 1 : (int)Math.Ceiling(route.Count / (double)maxPunkte);
+            var liste = new List<Coordinate>(maxPunkte + 2);
+            for (int i = 0; i < route.Count; i += schritt)
+            {
+                var (x, y) = SphericalMercator.FromLonLat(route[i].lon, route[i].lat);
+                liste.Add(new Coordinate(x, y));
+            }
+            var (xe, ye) = SphericalMercator.FromLonLat(route[^1].lon, route[^1].lat);
+            liste.Add(new Coordinate(xe, ye));
+            var f = new GeometryFeature { Geometry = new LineString(liste.ToArray()) };
+            f.Styles.Add(new VectorStyle { Line = new Pen(FarbeTour(t.Farbe), 3) { PenStyle = PenStyle.Solid } });
+            features.Add(f);
+        }
+        return features;
+    }
+
+    private static Mapsui.Styles.Color FarbeTour(string hex)
+    {
+        try { return Mapsui.Styles.Color.FromString(hex); }
+        catch { return Mapsui.Styles.Color.FromString("#0d9488"); }
+    }
+
+    // Nächstgelegene angezeigte Tour-Route zum Punkt (null, wenn keine in ~18 px Reichweite).
+    private TourInfo? NaechsteTourRoute(double lat, double lon)
+    {
+        if (_touren.Count == 0) return null;
+        double res = _map.Navigator.Viewport.Resolution;
+        if (res <= 0) return null;
+        double mProPixel = res * Math.Cos(lat * Math.PI / 180);
+        double tol = mProPixel * 18;
+        TourInfo? best = null;
+        double bestD = tol;
+        foreach (var t in _touren)
+        {
+            if (t.Route.Count < 2) continue;
+            for (int i = 1; i < t.Route.Count; i++)
+            {
+                double d = NavGeo.DistanzZuSegment(lat, lon, t.Route[i - 1], t.Route[i]);
+                if (d < bestD) { bestD = d; best = t; }
+            }
+        }
+        return best;
     }
 
     private async Task TourStarten(TourInfo tour)
@@ -427,16 +504,23 @@ public partial class MainPage : ContentPage
     // Kontextmenü „Was möchtest du tun?" – per kurzem Tipp (Map.Info) UND per Langdruck (Android) aufrufbar.
     private async Task KontextmenueZeigen(double lat, double lon)
     {
-        string wahl = await DisplayActionSheet("Was möchtest du tun?", "Abbrechen", null,
-            "🥾 Hierhin navigieren", "📍 Von hier starten", "➕ Zum Plan hinzufügen", "📥 Bereich offline laden");
-        if (wahl == "🥾 Hierhin navigieren") await RouteZu(lat, lon);
+        // Liegt der Punkt genau auf einer angezeigten Tour-Route? Dann „abwandern" anbieten.
+        var nah = NaechsteTourRoute(lat, lon);
+        var optionen = new List<string>();
+        if (nah != null) optionen.Add("🧭 GPS-Route abwandern");
+        optionen.Add("🥾 Hierhin navigieren");
+        optionen.Add("📍 Von hier starten");
+        optionen.Add("➕ Zum Plan hinzufügen");
+        // „Bereich offline laden" ist in Einstellungen → Karte umgezogen (dort als „Umgebung offline laden").
+        string wahl = await DisplayActionSheet("Was möchtest du tun?", "Abbrechen", null, optionen.ToArray());
+        if (wahl == "🧭 GPS-Route abwandern" && nah != null) await TourStarten(nah);
+        else if (wahl == "🥾 Hierhin navigieren") await RouteZu(lat, lon);
         else if (wahl == "📍 Von hier starten")
         {
             _startUeberschreibung = (lat, lon);
             Status("Start gesetzt – Ziel antippen", autoAus: true);
         }
         else if (wahl == "➕ Zum Plan hinzufügen") { _plan.Add((lat, lon)); PlanAnzeigen(); }
-        else if (wahl == "📥 Bereich offline laden") await OfflineLaden();
     }
 
     private async Task RouteZu(double zielLat, double zielLon, string? zielName = null)
@@ -518,6 +602,7 @@ public partial class MainPage : ContentPage
         NaviLaufKopf.IsVisible = _navAktiv;
         StartBtn.IsVisible = !_navAktiv;
         StopBtn.IsVisible = _navAktiv;
+        StopBtnPeek.IsVisible = _navAktiv;   // Stop auch im immer sichtbaren Peek
         AnweisungBox.IsVisible = _navAktiv;
         TourAktionen.IsVisible = _istTour;   // Tour-Aktionen nur bei aktiver Tour (im Navi-Panel)
         if (_navAktiv) AltChip.IsVisible = false;   // nach Start keine graue Alternativ-Anzeige
@@ -930,19 +1015,38 @@ public partial class MainPage : ContentPage
     {
         double res = _map.Navigator.Viewport.Resolution;
         if (res <= 0) return;
-        if (_letzteRes < 0 || Math.Abs(res - _letzteRes) / _letzteRes > 0.05)
+        // Nur bei echtem ZOOM (Auflösungsänderung) eingreifen – Pan/Zentrieren (GPS-Folgen) ignorieren.
+        if (_letzteZoomRes > 0 && Math.Abs(res - _letzteZoomRes) / _letzteZoomRes < 0.002) return;
+        _letzteZoomRes = res;
+        // Route + Richtungspfeil (volle Vektor-Geometrie) während der Geste ausblenden → kein Vektor-
+        // Rendering pro Frame, nur die flüssigen Kacheln + der bildschirm-konstante Beam bleiben.
+        if (!_vektorenVerborgen)
         {
-            // Redraw beim Zoom drosseln (max. ~10×/s) – sonst ruckelt Pinch-Zoom durch das
-            // ständige Neuzeichnen von Kegel/Pfeil bei jedem Viewport-Tick. Die endgültige
-            // Pixelgröße korrigiert spätestens der nächste GPS-Takt.
-            long jetzt = Environment.TickCount64;
-            if (jetzt - _letztViewportRedrawMs < 100) return;
-            _letztViewportRedrawMs = jetzt;
-            _letzteRes = res;
-            // Der Standort-Beam ist ein bildschirm-konstantes Symbol → braucht keinen Zoom-Redraw.
-            // Nur die (pixelgroße) Pfeilspitze des Richtungspfeils mitskalieren.
-            if (_navAktiv && _navPunkte != null) RichtungPfeilAktualisieren(_letztEntlang);
+            _vektorenVerborgen = true;
+            _routeLayer.Enabled = false;
+            _richtungLayer.Enabled = false;
+            _tourLayer.Enabled = false;
         }
+        if (_zoomTimer == null)
+        {
+            _zoomTimer = Dispatcher.CreateTimer();
+            _zoomTimer.Interval = TimeSpan.FromMilliseconds(150);
+            _zoomTimer.IsRepeating = false;
+            _zoomTimer.Tick += (_, __) => VektorenWiederZeigen();
+        }
+        _zoomTimer.Stop();
+        _zoomTimer.Start();   // Debounce: erst 150 ms nach dem letzten Zoom-Tick wieder einblenden
+    }
+
+    private void VektorenWiederZeigen()
+    {
+        _vektorenVerborgen = false;
+        _routeLayer.Enabled = true;
+        _richtungLayer.Enabled = true;
+        _tourLayer.Enabled = true;
+        // Pfeilspitze ist pixelgroß → einmal auf die neue Auflösung neu zeichnen.
+        if (_navAktiv && _navPunkte != null) RichtungPfeilAktualisieren(_letztEntlang);
+        _map.RefreshGraphics();
     }
 
     // Web-Pfeilform (navi.js) für die lila Richtungsspitze: lokale Punkte, Ursprung = Drehzentrum, y = vorwärts.

@@ -4,7 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:SpinNaviApp"
-    Title="Spin1More"
+    Title="{x:Static local:AppConfig.Marke}"
     FlyoutBehavior="Flyout"
     FlyoutBackgroundColor="#003153"
     Shell.BackgroundColor="White"
@@ -16,12 +16,34 @@
         <DataTemplate>
             <Grid HeightRequest="120" BackgroundColor="#003153" Padding="20,0">
                 <VerticalStackLayout VerticalOptions="Center" Spacing="2">
-                    <Label Text="Spin1More" FontSize="24" FontAttributes="Bold" TextColor="White" />
-                    <Label Text="Berlin &amp; Brandenburg" FontSize="13" TextColor="#9fc3d8" />
+                    <Label Text="{x:Static local:AppConfig.Marke}" FontSize="24" FontAttributes="Bold" TextColor="White" />
+                    <Label Text="{x:Static local:AppConfig.MarkeUntertitel}" FontSize="13" TextColor="#9fc3d8" />
                 </VerticalStackLayout>
             </Grid>
         </DataTemplate>
     </Shell.FlyoutHeaderTemplate>
+
+    <!-- Flyout-Einträge: weiße Schrift auf dem dunkelblauen Hintergrund (sonst kaum lesbar,
+         da die Default-Schrift die dunkle Shell.ForegroundColor erbt). Gilt für normale
+         Flyout-Items (binden Title) … -->
+    <Shell.ItemTemplate>
+        <DataTemplate>
+            <Grid Padding="20,0" HeightRequest="50" BackgroundColor="#003153" ColumnDefinitions="*">
+                <Label Text="{Binding Title}" TextColor="White" FontSize="16"
+                       VerticalOptions="Center" VerticalTextAlignment="Center" />
+            </Grid>
+        </DataTemplate>
+    </Shell.ItemTemplate>
+
+    <!-- … und für Menü-Einträge wie „Beenden" (binden Text). -->
+    <Shell.MenuItemTemplate>
+        <DataTemplate>
+            <Grid Padding="20,0" HeightRequest="50" BackgroundColor="#003153" ColumnDefinitions="*">
+                <Label Text="{Binding Text}" TextColor="White" FontSize="16"
+                       VerticalOptions="Center" VerticalTextAlignment="Center" />
+            </Grid>
+        </DataTemplate>
+    </Shell.MenuItemTemplate>
 
     <FlyoutItem Title="Start" Route="start">
         <ShellContent ContentTemplate="{DataTemplate local:UebersichtPage}" Route="StartPage" />

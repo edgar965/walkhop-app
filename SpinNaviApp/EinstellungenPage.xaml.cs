@@ -1,5 +1,8 @@
 using System.Diagnostics;
+using Mapsui;
+using Mapsui.Projections;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Devices.Sensors;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Storage;
 
@@ -207,6 +210,58 @@ public partial class EinstellungenPage : ContentPage
         }
         catch (Exception ex) { Debug.WriteLine(ex); CacheLabel.Text = "Zwischenspeicher: –"; }
     }
+
+    // Lädt die Kacheln rund um den aktuellen Standort (~3 km) offline vor. In den Einstellungen
+    // gibt es keinen Karten-Viewport → Region kommt aus der GPS-Position. Budget wie auf der Navi-Seite.
+    private async void OnOfflineLaden(object? sender, EventArgs e)
+    {
+        if (_laedtOffline) return;
+        int budget = Auth.AlleFunktionen ? int.MaxValue : (Auth.Premium ? 3 : 0) + Auth.OfflineGekauft;
+        if (Einst.OfflineAnzahl >= budget)
+        {
+            bool hin = await DisplayAlert("Offline-Karten",
+                "Offline-Karten sind im Premium-Abo enthalten (5 €: 3 Karten, 8 €: alle) oder einzeln kaufbar (3 €).",
+                "Zum Konto", "Abbrechen");
+            if (hin) await Shell.Current.GoToAsync("//konto");
+            return;
+        }
+        Location? loc = null;
+        try
+        {
+            loc = await Geolocation.GetLastKnownLocationAsync()
+                  ?? await Geolocation.GetLocationAsync(new GeolocationRequest(GeolocationAccuracy.Medium, TimeSpan.FromSeconds(8)));
+        }
+        catch (Exception ex) { Debug.WriteLine(ex); }
+        if (loc == null)
+        {
+            await DisplayAlert("Offline laden", "Aktueller Standort nicht verfügbar – bitte GPS aktivieren und erneut versuchen.", "OK");
+            return;
+        }
+
+        _laedtOffline = true;
+        OfflineLadenBtn.IsEnabled = false;
+        var (x, y) = SphericalMercator.FromLonLat(loc.Longitude, loc.Latitude);
+        double r = 3000.0 / Math.Max(0.1, Math.Cos(loc.Latitude * Math.PI / 180));   // ~3 km Radius in Web-Mercator-Einheiten
+        var bereich = new MRect(x - r, y - r, x + r, y + r);
+        var quelle = MapQuellen.Quelle(Einst.Karte);
+        var prog = new Progress<(int done, int total)>(p =>
+            MainThread.BeginInvokeOnMainThread(() => CacheLabel.Text = $"Offline laden … {p.done}/{p.total}"));
+        try
+        {
+            int n = await Task.Run(() => OfflineKarte.DownloadAsync(quelle, bereich, 13, 15, 400, prog));
+            if (n > 0) Einst.OfflineAnzahl++;
+            await DisplayAlert("Offline-Karten", $"{n} Kacheln rund um deinen Standort offline gespeichert.", "OK");
+        }
+        catch (Exception ex) { Debug.WriteLine(ex); await DisplayAlert("Offline laden", "Beim Laden ist ein Fehler aufgetreten.", "OK"); }
+        finally
+        {
+            _laedtOffline = false;
+            OfflineLadenBtn.IsEnabled = true;
+            CacheGroesseAnzeigen();
+        }
+    }
+
+    private bool _laedtOffline;
 
     private async void OnCacheLeeren(object? sender, EventArgs e)
     {

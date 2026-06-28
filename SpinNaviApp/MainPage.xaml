@@ -180,6 +180,11 @@
                                 <Label Text="·" FontSize="16" TextColor="#cbd5e1" VerticalOptions="Center" />
                                 <Label x:Name="AnkunftLabel" Text="–" FontSize="16" FontAttributes="Bold" TextColor="#0d9488" VerticalOptions="Center" />
                             </HorizontalStackLayout>
+                            <!-- Kompakter Stop-Knopf IM immer sichtbaren Peek: Navigation jederzeit beendbar,
+                                 ohne die Schublade aufklappen zu müssen. -->
+                            <Button x:Name="StopBtnPeek" AutomationId="navi_stop_peek" Grid.Column="1" Text="Stop" Clicked="OnStop"
+                                    IsVisible="False" BackgroundColor="#e2231a" TextColor="White" CornerRadius="10"
+                                    FontSize="13" FontAttributes="Bold" Padding="16,2" HeightRequest="36" Margin="8,0,0,0" VerticalOptions="Center" />
                         </Grid>
 
                         <!-- ===== Höhenprofil (beide Zustände) ===== -->

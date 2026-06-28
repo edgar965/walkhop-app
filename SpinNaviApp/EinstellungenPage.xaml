@@ -359,6 +359,10 @@
                     <Border Style="{StaticResource Card}">
                         <VerticalStackLayout Spacing="12">
                             <Label x:Name="CacheLabel" Text="Zwischenspeicher: –" FontSize="13" TextColor="#64748b" />
+                            <Label Text="Lädt die Kartenkacheln rund um deinen aktuellen Standort (~3 km) für die Offline-Nutzung."
+                                   FontSize="12" TextColor="#94a3b8" />
+                            <Button x:Name="OfflineLadenBtn" AutomationId="offline_laden" Text="📥 Umgebung offline laden" Clicked="OnOfflineLaden"
+                                    BackgroundColor="#16a34a" TextColor="White" CornerRadius="10" />
                             <Button Text="🗑 Offline-Cache leeren" Clicked="OnCacheLeeren"
                                     BackgroundColor="#e2231a" TextColor="White" CornerRadius="10" />
                         </VerticalStackLayout>

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
 
 namespace SpinNaviApp;
@@ -33,6 +34,12 @@ public static class Auth
     public static string Plan { get => Preferences.Get("k_plan", "frei"); private set => Preferences.Set("k_plan", value); }
     public static bool Premium { get => Preferences.Get("k_premium", false); private set => Preferences.Set("k_premium", value); }
     public static bool AlleFunktionen { get => Preferences.Get("k_alle", false); private set => Preferences.Set("k_alle", value); }
+    /// <summary>Admin/Vollzugriff: vom Server freigeschaltet (alle_funktionen) ODER das fest
+    /// hinterlegte Admin-Konto e@edgarm.de. Steuert u. a. den Selbsttest-Menüpunkt.</summary>
+    public static bool IstAdmin => AlleFunktionen
+        || string.Equals(Email, "e@edgarm.de", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Wird ausgelöst, wenn sich der Konto-Status geändert hat (Login/Logout/Refresh).</summary>
+    public static event Action? StatusGeaendert;
     public static int RoutenHeute { get => Preferences.Get("k_routen", 0); private set => Preferences.Set("k_routen", value); }
     public static int GratisProTag { get => Preferences.Get("k_gratis", 2); private set => Preferences.Set("k_gratis", value); }
     public static int CreditsRouten { get => Preferences.Get("k_cr", 0); private set => Preferences.Set("k_cr", value); }
@@ -172,6 +179,8 @@ public static class Auth
             if (r.TryGetProperty("credits_routen", out var cr) && cr.ValueKind == JsonValueKind.Number) CreditsRouten = cr.GetInt32();
             if (r.TryGetProperty("offline_gekauft", out var of) && of.ValueKind == JsonValueKind.Number) OfflineGekauft = of.GetInt32();
         }
+        catch (Exception ex) { Debug.WriteLine(ex); }
+        try { MainThread.BeginInvokeOnMainThread(() => StatusGeaendert?.Invoke()); }
         catch (Exception ex) { Debug.WriteLine(ex); }
     }
 }

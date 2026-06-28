@@ -13,6 +13,13 @@ public static class AppConfig
     /// aus ist der Host-Rechner "http://10.0.2.2:8090").</summary>
     public const string ApiBase = "https://spin1more.com";
 
+    /// <summary>Markenname dieser App-Variante (Flyout-Kopf, Shell-Titel). Pro Marke/Build
+    /// ändern: WalkHop-App = "WalkHop", Spin1More-App = "Spin1More".</summary>
+    public const string Marke = "WalkHop";
+
+    /// <summary>Untertitel/Region unter dem Markennamen im Flyout-Kopf.</summary>
+    public const string MarkeUntertitel = "Berlin & Brandenburg";
+
 #if DEBUG
     // ---- Nur Debug: Selbsttest-WebView (TestPage) --------------------------
     /// <summary>Basis-URL der Web-App (nur für den Debug-Selbsttest-WebView).</summary>
