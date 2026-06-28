@@ -19,6 +19,7 @@
     <Compile Include="..\WalkHop\Services\Polyline.cs" />
     <Compile Include="..\WalkHop\Services\RouteService.cs" />
     <Compile Include="..\WalkHop\Services\NavGeo.cs" />
+    <Compile Include="..\WalkHop\Services\NaviLogik.cs" />
     <Compile Include="..\WalkHop\Services\TourService.cs" />
     <Compile Include="..\WalkHop\Services\PoiService.cs" />
     <Compile Include="..\WalkHop\Services\FotoService.cs" />

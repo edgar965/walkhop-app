@@ -25,6 +25,7 @@ public partial class MainPage : ContentPage
     private const int ZentrierZoom = 16;        // Zoom beim Zentrieren auf den Standort
     private const int MaxOsmZoom = 19;          // höchste sinnvolle OSM-Kachelstufe
     private const double ZielRadiusMeter = 25;  // ab hier gilt das Ziel als erreicht
+    private const double RerouteSchwelleMeter = 50;  // Abstand zur Route, ab dem neu geroutet wird (off-route)
     private const int OfflineExtraZoom = 2;     // beim Offline-Laden so viele Stufen tiefer
     private const int OfflineMaxKacheln = 300;  // Obergrenze pro Offline-Download
     private const int AppKontoOfflineP5 = 3;    // Abo 5 €: 3 Offline-Karten inklusive (vgl. AppKonto.OFFLINE_INKLUSIVE_P5)
@@ -49,6 +50,9 @@ public partial class MainPage : ContentPage
     private MemoryLayer _breadcrumbLayer = null!; // dezente „Brotkrumen"-Spur des zurückgelegten Weges (unter der Route)
     private readonly List<(double lat, double lon)> _breadcrumb = new();   // gesammelte GPS-Spur
     private readonly object _breadcrumbLock = new();
+    // Brotkrumen-Spur deckeln: bei ~1 Fix/s reichen ein paar Tausend Punkte locker; verhindert
+    // unbegrenztes Wachstum (Speicher) und teures Kopieren/Zeichnen der gesamten Liste.
+    private const int MaxBreadcrumb = 5000;
     // Gruppen-Position: eigene Live-Position teilen + Mitglieder als Marker zeigen (Code-basiert).
     private MemoryLayer _gruppeLayer = null!;
     private string _gruppeCode = "";              // aktiver Gruppen-Code (leer = nicht in einer Gruppe)
@@ -87,11 +91,13 @@ public partial class MainPage : ContentPage
     private IDispatcherTimer? _zoomTimer;
     private bool _gpsLaeuft, _kompassLaeuft, _berechtigungGeprueft;
     private bool _positionsSchleifeLaeuft;   // genau eine Live-Positions-Schleife (umgeht den 50-m-Distanzfilter)
+    private volatile bool _seiteLebt;        // Seite sichtbar (OnAppearing…OnDisappearing): Schutz für fire-and-forget-UI-Zugriffe
 
     // Live-Navigation
     private List<(double lat, double lon)>? _navPunkte;
     private double[]? _navKum;
     private List<Manoever> _navManoever = new();
+    private int[] _navManoeverBegin = Array.Empty<int>();   // BeginIndex je Manöver (1× vorberechnet, kein LINQ je GPS-Takt)
     private string _letztNotifText = "";   // letzter an die Uhr gespiegelte Abbiege-Hinweis
     private double _navGesamt;
     private int _letztGesprochen = -1, _vorabGesprochen = -1, _navIdx;
@@ -251,6 +257,7 @@ public partial class MainPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        _seiteLebt = true;
         // Einstellungen, die sich zwischenzeitlich (Einstellungs-Seite) geändert haben können,
         // beim Zurückkehren auf die Karte anwenden.
         try { DeviceDisplay.Current.KeepScreenOn = Einst.BildschirmWach; } catch (Exception ex) { Debug.WriteLine(ex); }
@@ -385,6 +392,7 @@ public partial class MainPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        _seiteLebt = false;  // ab hier dürfen fire-and-forget-Fortsetzungen die UI nicht mehr berühren
         SensorenStoppen();   // Lifecycle-Gegenstück zu OnAppearing: Akku/Leaks vermeiden
         GruppeStop();        // Gruppen-Polling pausieren (Code bleibt erhalten)
     }
@@ -446,22 +454,46 @@ public partial class MainPage : ContentPage
     {
         if (_positionsSchleifeLaeuft) return;
         _positionsSchleifeLaeuft = true;
+        const int BackoffBasisMs = 1000;   // erste Wartezeit nach einem Fehlversuch
+        const int BackoffMaxMs = 15000;    // gedeckelte Obergrenze (kein endloser Eng-Takt bei GPS-Ausfall)
+        int fehler = 0;                    // Fehlerzähler fürs Backoff
+        bool fehlerGemeldet = false;       // Nutzer-Feedback nur EINMAL je Fehlerserie (kein stiller Dauerfehler)
         try
         {
             while (_gpsLaeuft)
             {
                 long start = Environment.TickCount64;
+                bool ok = false;
                 try
                 {
                     var loc = await Geolocation.Default.GetLocationAsync(
                         new GeolocationRequest(GeolocationAccuracy.Best, TimeSpan.FromSeconds(10)));
                     GpsLog($"Live-Fix = {(loc == null ? "NULL (Timeout)" : $"{loc.Latitude:F5},{loc.Longitude:F5}")}");
-                    if (loc != null) VerarbeitePosition(loc);
+                    if (loc != null) { VerarbeitePosition(loc); ok = true; }
                 }
                 catch (Exception ex) { GpsLog("Live-Fehler: " + ex.Message); }
-                // Schutz gegen Leerlauf-Spin, falls GetLocationAsync sofort (ohne echten Fix) zurückkäme:
-                long dauer = Environment.TickCount64 - start;
-                if (dauer < 200) await Task.Delay(200 - (int)dauer);
+
+                if (ok)
+                {
+                    fehler = 0; fehlerGemeldet = false;   // Erfolg → Backoff + Feedback zurücksetzen
+                    // Schutz gegen Leerlauf-Spin, falls GetLocationAsync sofort (ohne echten Fix) zurückkäme:
+                    long dauer = Environment.TickCount64 - start;
+                    if (dauer < 200) await Task.Delay(200 - (int)dauer);
+                }
+                else
+                {
+                    // Fehler / kein Fix (Timeout): Intervall gedeckelt exponentiell vergrößern, damit wir bei
+                    // dauerhaftem GPS-Ausfall nicht im engen Takt weiterpollen (Akku/Log-Spam). Bei Erfolg → reset.
+                    fehler++;
+                    if (!fehlerGemeldet)
+                    {
+                        fehlerGemeldet = true;   // dezenter, einmaliger Hinweis statt stillem Dauerfehler
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        { if (_seiteLebt) Status(L.T("st_gps_nicht_verfuegbar"), autoAus: true); });
+                    }
+                    int warte = Math.Min(BackoffMaxMs, BackoffBasisMs * (1 << Math.Min(fehler - 1, 4)));
+                    await Task.Delay(warte);
+                }
             }
         }
         finally { _positionsSchleifeLaeuft = false; }
@@ -514,11 +546,16 @@ public partial class MainPage : ContentPage
                 NavGeo.Haversine(_breadcrumb[^1].lat, _breadcrumb[^1].lon, loc.Latitude, loc.Longitude) > 8)
             {
                 _breadcrumb.Add((loc.Latitude, loc.Longitude));
+                // Deckel: bei Überlauf den ältesten Block in EINEM Rutsch verwerfen (amortisiert O(1)
+                // statt teurem Einzel-Shift je Punkt) – auf ~90 % der Obergrenze zurückstutzen.
+                if (_breadcrumb.Count > MaxBreadcrumb)
+                    _breadcrumb.RemoveRange(0, _breadcrumb.Count - MaxBreadcrumb * 9 / 10);
                 breadcrumbNeu = true;
             }
         }
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (!_seiteLebt) return;   // Seite verlassen → keine Karten-/UI-Zugriffe mehr (fire-and-forget-Schutz)
             PositionZeichnen();
             if (breadcrumbNeu) BreadcrumbZeichnen();
             double kurs = _kompassHatWert ? _heading : _gpsKurs;   // ohne Kompass-HW (N55): GPS-Fahrtrichtung
@@ -656,6 +693,7 @@ public partial class MainPage : ContentPage
         _navPunkte = punkte;
         _navKum = NavGeo.Kumulativ(punkte);
         _navManoever = manoever;
+        _navManoeverBegin = manoever.Select(m => m.BeginIndex).ToArray();   // 1× vorberechnet für NaviLogik.NaechstesManoever
         _navGesamt = _navKum[^1];
         _ankunftText = ankunft;
         _letztGesprochen = -1;
@@ -736,11 +774,11 @@ public partial class MainPage : ContentPage
         if (!_navAktiv || _navPunkte == null || _navKum == null) return;   // in der Vorschau noch keine Turn-by-Turn-Updates
         var (idx, entlang, abstand) = NavGeo.Projektion(lat, lon, _navPunkte, _navKum, _navIdx);
         _navIdx = idx;   // Fenster-Hinweis für den nächsten Tick (O(1) statt O(n))
-        double rest = Math.Max(0, _navGesamt - entlang);
+        double rest = NaviLogik.Reststrecke(_navGesamt, entlang);
         RichtungPfeilAktualisieren(entlang);   // lila Richtungspfeil voraus mitführen
 
         // Auto-Reroute bei Abweichung von der Route (>50 m), gedrosselt.
-        if (abstand > 50 && !_reroutLaeuft && Environment.TickCount64 - _letztRerouteMs > 6000)
+        if (NaviLogik.IstAbseitsRoute(abstand, RerouteSchwelleMeter) && !_reroutLaeuft && Environment.TickCount64 - _letztRerouteMs > 6000)
         {
             _letztRerouteMs = Environment.TickCount64;
             _ = Reroute(lat, lon);
@@ -767,21 +805,14 @@ public partial class MainPage : ContentPage
             return;
         }
 
-        // nächstes Manöver = erstes, das DISTANZMÄSSIG noch vor uns liegt. Distanz statt
-        // reinem Index-Vergleich (BeginIndex > idx) ist robust gegen GPS-Sprünge, die idx
-        // genau auf einen Manöver-Stützpunkt setzen, und überspringt das Start-Manöver
-        // (Distanz 0) ganz natürlich.
-        int next = -1;
-        for (int m = 0; m < _navManoever.Count; m++)
-        {
-            int bi = Math.Min(_navManoever[m].BeginIndex, _navKum.Length - 1);
-            if (_navManoever[m].BeginIndex >= idx && _navKum[bi] > entlang) { next = m; break; }
-        }
+        // nächstes Manöver = erstes, das DISTANZMÄSSIG noch vor uns liegt (Logik in NaviLogik):
+        // Distanz statt reinem Index-Vergleich ist robust gegen GPS-Sprünge, die idx genau auf
+        // einen Manöver-Stützpunkt setzen, und überspringt das Start-Manöver (Distanz 0).
+        int next = NaviLogik.NaechstesManoever(_navManoeverBegin, _navKum, idx, entlang);
 
         if (next >= 0)
         {
-            int bi = Math.Min(_navManoever[next].BeginIndex, _navKum.Length - 1);
-            double distNext = Math.Max(0, _navKum[bi] - entlang);
+            double distNext = NaviLogik.DistanzBisManoever(_navKum, _navManoever[next].BeginIndex, entlang);
             DistNaechstLabel.Text = FmtKm(distNext);
             AbbiegePfeil.Rotation = PfeilWinkel(_navManoever[next].Typ);
             AbbiegePfeil.IsVisible = true;
@@ -839,11 +870,11 @@ public partial class MainPage : ContentPage
             {
                 var kum = NavGeo.Kumulativ(_tourOriginal);
                 var (idx, _, _) = NavGeo.Projektion(lat, lon, _tourOriginal, kum);
-                int ein = Math.Min(idx + 1, _tourOriginal.Count - 1);
+                int ein = NaviLogik.NaechsterIndex(idx, _tourOriginal.Count);
                 var rest = _tourOriginal.GetRange(ein, _tourOriginal.Count - ein);
                 var r = await RouteService.RouteAsync(lat, lon, _tourOriginal[ein].lat, _tourOriginal[ein].lon,
                     Einst.Profil, opt, Einst.NaviLocale, folge: true);
-                if (_navPunkte != null && r != null && r.Punkte.Count >= 2)   // Sitzung noch aktiv?
+                if (_seiteLebt && _navPunkte != null && r != null && r.Punkte.Count >= 2)   // Seite + Sitzung noch aktiv?
                 {
                     var komb = new List<(double lat, double lon)>(r.Punkte);
                     komb.AddRange(rest);
@@ -855,7 +886,7 @@ public partial class MainPage : ContentPage
             else if (_navZiel is { } z)
             {
                 var (r, alt) = await RouteService.RouteVollAsync(lat, lon, z.lat, z.lon, Einst.Profil, opt, Einst.NaviLocale, 2, folge: true);
-                if (_navPunkte != null && r != null && r.Punkte.Count >= 2)
+                if (_seiteLebt && _navPunkte != null && r != null && r.Punkte.Count >= 2)   // Seite + Sitzung noch aktiv?
                 {
                     _alternativen = alt; _navMinuten = r.Minuten;
                     var ank = DateTime.Now.AddMinutes(r.Minuten).ToString("HH:mm");
@@ -891,7 +922,7 @@ public partial class MainPage : ContentPage
         try
         {
             var profil = await HoeheService.ProfilAsync(pts);
-            if (_navPunkte == null) return;   // Navigation zwischenzeitlich beendet
+            if (!_seiteLebt || _navPunkte == null) return;   // Seite verlassen / Navigation zwischenzeitlich beendet
             _hoehe.Daten = profil;
             HoeheView.Invalidate();
             if (profil.Count > 1)
@@ -902,7 +933,7 @@ public partial class MainPage : ContentPage
                     double d = profil[i].hoehe - profil[i - 1].hoehe;
                     if (d > 0) auf += d; else ab -= d;
                 }
-                HoeheInfo.Text = $"Höhenprofil  ↑ {auf:0} m  ↓ {ab:0} m";
+                HoeheInfo.Text = L.T("mp_hoehenprofil_werte", auf, ab);
                 HoeheBlock.IsVisible = true;
             }
             else HoeheBlock.IsVisible = false;   // keine Höhendaten → Block ausblenden
@@ -1019,7 +1050,7 @@ public partial class MainPage : ContentPage
 
     private void NavigationBeenden()
     {
-        _navPunkte = null; _navKum = null; _navManoever = new();
+        _navPunkte = null; _navKum = null; _navManoever = new(); _navManoeverBegin = Array.Empty<int>();
         _letztGesprochen = -1; _zielAngesagt = false; _tonManoever = -1; _startUeberschreibung = null;
         _letztNotifText = ""; NaviNotif.Aus();   // Watch-Hinweis entfernen
         _alternativen.Clear(); AltChip.IsVisible = false;
@@ -1690,7 +1721,7 @@ public partial class MainPage : ContentPage
     {
         if (_navPunkte == null || _navKum == null || _letzteGeo == null) return;
         var (idx, _, _) = NavGeo.Projektion(_letzteGeo.Value.lat, _letzteGeo.Value.lon, _navPunkte, _navKum);
-        int ein = Math.Min(idx + 1, _navPunkte.Count - 1);
+        int ein = NaviLogik.NaechsterIndex(idx, _navPunkte.Count);
         var rest = _navPunkte.GetRange(ein, _navPunkte.Count - ein);
         await AnfahrtUndTour(_navPunkte[ein].lat, _navPunkte[ein].lon, rest);
     }
@@ -1752,7 +1783,7 @@ public partial class MainPage : ContentPage
     {
         if (_gruppeCode.Length == 0) return;
         var mitglieder = await GruppeService.HoleAsync(_gruppeCode);
-        if (_gruppeCode.Length == 0) return;   // zwischenzeitlich verlassen
+        if (!_seiteLebt || _gruppeCode.Length == 0) return;   // Seite verlassen / Gruppe zwischenzeitlich verlassen
         GruppeZeichnen(mitglieder);
     }
 

@@ -15,13 +15,16 @@ public partial class EinstellungenPage : ContentPage
     private static readonly Color Weiss = Colors.White;
     private bool _laedt;
 
+    // Radius (km) der „Umgebung offline laden"-Funktion rund um den aktuellen Standort.
+    // Hält den in der Lade-Logik verwendeten Wert an einer Stelle (Hinweistext „~3 km"
+    // steht in der Lokalisierung, Texte.cs → einst_offline_info).
+    private const double UmgebungRadiusKm = 3;
+
     public EinstellungenPage()
     {
         InitializeComponent();
         VersionLabel.Text = L.T("version_label", AppInfo.Current.VersionString, AppInfo.Current.BuildString);
         ServerLabel.Text = L.T("server_label", AppConfig.ApiBase);
-        // Bei Sprachwechsel die imperativ gesetzten Texte (Sprach-/Einheiten-/Konto-/Cache-Labels) neu rendern.
-        L.Geaendert += SpracheAngewendet;
 
         _laedt = true;
         // Allgemein
@@ -55,10 +58,21 @@ public partial class EinstellungenPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        // Bei Sprachwechsel die imperativ gesetzten Texte (Sprach-/Einheiten-/Konto-/Cache-Labels) neu rendern.
+        // Symmetrisch zu OnDisappearing abonnieren (die Seite wird von der Shell zwischengespeichert, der
+        // Konstruktor läuft nur einmal) – so bleibt nach Verlassen+Zurückkehren genau EIN Abo bestehen.
+        L.Geaendert -= SpracheAngewendet;
+        L.Geaendert += SpracheAngewendet;
         CacheGroesseAnzeigen();
         StandardPunktAnzeigen();
         try { await Auth.AktualisiereAsync(); } catch (Exception ex) { Debug.WriteLine(ex); }
         KontoAnzeigen();
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        L.Geaendert -= SpracheAngewendet;   // Sprachwechsel-Abo lösen (kein Leak/Mehrfach-Aufruf)
     }
 
     // ---- Tab-Umschaltung ---------------------------------------------------
@@ -291,7 +305,7 @@ public partial class EinstellungenPage : ContentPage
         _laedtOffline = true;
         OfflineLadenBtn.IsEnabled = false;
         var (x, y) = SphericalMercator.FromLonLat(loc.Longitude, loc.Latitude);
-        double r = 3000.0 / Math.Max(0.1, Math.Cos(loc.Latitude * Math.PI / 180));   // ~3 km Radius in Web-Mercator-Einheiten
+        double r = UmgebungRadiusKm * 1000.0 / Math.Max(0.1, Math.Cos(loc.Latitude * Math.PI / 180));   // Radius (km→m) in Web-Mercator-Einheiten
         var bereich = new MRect(x - r, y - r, x + r, y + r);
         var quelle = MapQuellen.Quelle(Einst.Karte);
         var prog = new Progress<(int done, int total)>(p =>

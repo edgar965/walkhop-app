@@ -433,19 +433,10 @@ public partial class UebersichtPage : ContentPage
         foreach (var f in _fotos)
         {
             if (!sichtbar.Contains(f.TourId)) continue;
-            double d = MeterDistanz(lat, lon, f.Lat, f.Lon);
+            double d = NavGeo.Haversine(lat, lon, f.Lat, f.Lon);
             if (d < bestD) { bestD = d; best = f; }
         }
         return best;
-    }
-
-    private static double MeterDistanz(double lat1, double lon1, double lat2, double lon2)
-    {
-        const double R = 6371000;
-        double dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
-        double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
-                 + Math.Cos(lat1 * Math.PI / 180) * Math.Cos(lat2 * Math.PI / 180) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-        return 2 * R * Math.Asin(Math.Min(1, Math.Sqrt(a)));
     }
 
     // Foto-Betrachter: zeigt das Bild + Bildunterschrift in einem Modal; optional von dort navigieren.
