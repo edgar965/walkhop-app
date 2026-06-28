@@ -17,7 +17,13 @@ public partial class App : Application
 		{
 			await Auth.InitAsync();
 			await AufnahmeService.UploadeAusstehendAsync();
+			// Cold-Start: ein evtl. beim Start eingegangener Deep-Link (walkhop://g/<code>) wird
+			// jetzt angewandt – die Shell ist nun bereit (Beitritt + Navigation zur Karte).
+			DeepLink.AusstehendAnwenden();
 		};
+		// Beim Wiederkehren aus dem Hintergrund einen noch ausstehenden Deep-Link nachholen
+		// (Absicherung gegen Timing zwischen Plattform-Intent und bereiter Shell).
+		window.Activated += (_, _) => DeepLink.AusstehendAnwenden();
 		// Beim App-Ende/Hintergrund: laufende Auto-Aufnahme abschließen, dann Tracks hochladen.
 		window.Stopped += async (_, _) =>
 		{

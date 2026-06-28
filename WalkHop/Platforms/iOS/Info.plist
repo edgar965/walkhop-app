@@ -39,5 +39,18 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
+	<!-- Custom-Scheme Deep-Link: walkhop://g/<code> öffnet die App (siehe AppDelegate.OpenUrl).
+	     Nur das Custom-Scheme; universelle https-Links (apple-app-site-association) separat. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.companyname.spinnaviapp</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>walkhop</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
