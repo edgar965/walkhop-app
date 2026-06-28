@@ -46,6 +46,9 @@ public static class Texte
         ["gruppe_verlassen"] = "Gruppe verlassen",
         ["gruppe_name_aendern"] = "Namen ändern",
         ["gruppe_verlassen_ok"] = "Gruppe verlassen",
+        ["gruppe_erstellen"] = "Gruppe erstellen",
+        ["gruppe_teilen"] = "📤 Gruppe teilen",
+        ["gruppe_teilen_text"] = "Folge meiner Live-Position in WalkHop (oder im Browser): {0}",
 
         // Abmelden-Dialog (Shell „Beenden" + Konto)
         ["logout_titel"] = "Abmelden",
@@ -374,6 +377,9 @@ public static class Texte
         ["gruppe_verlassen"] = "Leave group",
         ["gruppe_name_aendern"] = "Change name",
         ["gruppe_verlassen_ok"] = "Left the group",
+        ["gruppe_erstellen"] = "Create group",
+        ["gruppe_teilen"] = "📤 Share group",
+        ["gruppe_teilen_text"] = "Follow my live location in WalkHop (or in the browser): {0}",
 
         // Log-out dialog
         ["logout_titel"] = "Log out",

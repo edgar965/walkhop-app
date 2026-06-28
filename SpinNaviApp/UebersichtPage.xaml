@@ -54,6 +54,20 @@
                       Stroke="#0f172a" StrokeThickness="2.2" StrokeLineJoin="Round" StrokeLineCap="Round"
                       Data="M14 4 H20 V10 M20 4 L13 11 M10 20 H4 V14 M4 20 L11 13" />
                 </Border>
+            <!-- Gruppe: Live-Position mit der Gruppe teilen + Mitglieder als Marker (erstellen/teilen/beitreten) -->
+            <Border x:Name="GruppeBorder" AutomationId="osm_gruppe" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                    WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22">
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnGruppe" /></Border.GestureRecognizers>
+                <Grid HorizontalOptions="Center" VerticalOptions="Center">
+                    <Label x:Name="GruppeIcon" Text="👥" FontSize="20" HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Border x:Name="GruppeBadge" IsVisible="False" BackgroundColor="#16a34a" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 9" WidthRequest="18" HeightRequest="18"
+                            HorizontalOptions="End" VerticalOptions="Start" TranslationX="7" TranslationY="-7">
+                        <Label x:Name="GruppeBadgeText" Text="" FontSize="10" FontAttributes="Bold" TextColor="White"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                </Grid>
+            </Border>
         </VerticalStackLayout>
 
         <!-- Status -->

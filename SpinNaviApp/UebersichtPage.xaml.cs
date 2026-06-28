@@ -7,6 +7,7 @@ using Mapsui.Projections;
 using Mapsui.Styles;
 using Mapsui.Tiling.Layers;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.ApplicationModel.DataTransfer;
 using Microsoft.Maui.Devices.Sensors;
 using NetTopologySuite.Geometries;
 
@@ -34,6 +35,7 @@ public partial class UebersichtPage : ContentPage
     private MemoryLayer _fotoLayer = null!;
     private MemoryLayer _kreisLayer = null!;
     private MemoryLayer _markerLayer = null!;
+    private MemoryLayer _gruppeLayer = null!;        // Live-Marker der Gruppenmitglieder
     private MemoryLayer _genLayer = null!;          // generierte Rundwanderungen
     private List<GenWanderung> _genWanderungen = new();
     private string _genCosting = "pedestrian";       // Modus der zuletzt generierten Rundwanderungen (für Dialog/Navigation)
@@ -99,6 +101,8 @@ public partial class UebersichtPage : ContentPage
         _map.Layers.Add(_markerLayer);
         _genLayer = new MemoryLayer("GenWanderungen");   // generierte Rundwanderungen (über den Touren)
         _map.Layers.Add(_genLayer);
+        _gruppeLayer = new MemoryLayer("GruppeLive") { Style = null };   // Live-Marker der Gruppenmitglieder
+        _map.Layers.Add(_gruppeLayer);
         // Style = null: KEIN Layer-Default-Symbol (Mapsui zeichnet sonst einen grau/weißen Kreis
         // hinter jedes Punkt-Feature). Die Position bekommt ihren Style allein über das Feature.
         _posLayer = new MemoryLayer("Position") { Style = null };   // Live-Standort-Beam ganz oben
@@ -201,6 +205,11 @@ public partial class UebersichtPage : ContentPage
         _ = SensorenStarten();   // Live-Standort-Beam + Kompass (jedes Mal, da OnDisappearing stoppt)
         KompassIconAktualisieren();
         KompakteSucheAnwenden();   // kompakten Suchmodus aus den Einstellungen übernehmen (beim Erscheinen)
+        // Gruppen-Live: Marker/Knopf an die gemeinsame Komponente koppeln und Polling fortsetzen.
+        GruppeLive.Mitglieder += GruppeMarkerZeichnen;
+        GruppeLive.Geaendert += GruppeIconAktualisieren;
+        GruppeIconAktualisieren();
+        GruppeLive.Starten();
         if (_geladen) return;
         _geladen = true;
         Status(L.T("ue_st_touren_laden"));
@@ -213,6 +222,9 @@ public partial class UebersichtPage : ContentPage
     {
         base.OnDisappearing();
         SensorenStoppen();   // Akku/Leaks: Standort-Schleife + Kompass beim Verlassen stoppen
+        GruppeLive.Mitglieder -= GruppeMarkerZeichnen;
+        GruppeLive.Geaendert -= GruppeIconAktualisieren;
+        GruppeLive.Pausieren();
     }
 
     private async Task ErstLadenAsync()
@@ -261,7 +273,10 @@ public partial class UebersichtPage : ContentPage
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (seq != _anwendenSeq) return;   // ein neuerer Filterlauf ist unterwegs → verwerfen
-                _gefiltert = gefiltert;
+                // NUR die tatsächlich gezeichneten Routen als „gefiltert" merken (gleicher Deckel wie beim
+                // Zeichnen). Sonst matcht NaechsteTourRoute auch NICHT gezeichnete Routen (>MaxRouten) und
+                // öffnet ein Popup zu einer Route, die gar nicht auf der Karte liegt.
+                _gefiltert = gefiltert.Take(MaxRouten).ToList();
                 _tourLayer.Features = features;
                 _tourLayer.DataHasChanged();
                 // Filter/Suche sichtbar machen: Die Zoom-Glättung deaktiviert _tourLayer (und Fotos)
@@ -347,8 +362,8 @@ public partial class UebersichtPage : ContentPage
             // Die volle Geometrie zeichnet erst die Navi-Seite. So bleibt Verschieben flüssig
             // (statt 250 × 337 = ~54.000 nur noch ~3.000 Punkte gesamt). Beim Zoom werden die
             // Vektoren ohnehin kurz ausgeblendet (BeiViewportAenderung).
-            const int maxPunkte = 12;
-            var route = t.Route;
+            const int maxPunkte = 36;   // feiner als zuvor (12) → die Linie folgt der Route besser,
+            var route = t.Route;        //   damit ein Tipp auf die sichtbare Linie auch die richtige Route trifft
             int schritt = route.Count <= maxPunkte ? 1 : (int)Math.Ceiling(route.Count / (double)maxPunkte);
             var liste = new List<Coordinate>(maxPunkte + 2);
             for (int i = 0; i < route.Count; i += schritt)
@@ -1109,6 +1124,7 @@ public partial class UebersichtPage : ContentPage
         }
         else _letzteKursGeo = (loc.Latitude, loc.Longitude);
         _letzteGeo = (loc.Latitude, loc.Longitude);
+        GruppeLive.Sende(loc.Latitude, loc.Longitude);   // eigene Position in die Gruppe (gedrosselt, wenn aktiv)
         var (x, y) = SphericalMercator.FromLonLat(loc.Longitude, loc.Latitude);
         _letztePos = new MPoint(x, y);
         MainThread.BeginInvokeOnMainThread(() =>
@@ -1495,7 +1511,12 @@ public partial class UebersichtPage : ContentPage
 
     private void FotoFilterAnwenden()
     {
-        if (!_fotoAn) { _fotoLayer.Features = new List<IFeature>(); _fotoLayer.DataHasChanged(); return; }
+        // Foto-Ebene sicher aktivieren (die Zoom-Glättung deaktiviert sie zwischenzeitlich) UND die
+        // Karte nach der Feature-Änderung neu zeichnen – sonst erscheinen die Marker auf iOS erst nach
+        // einem Resize/Zoom (DataHasChanged allein löst dort kein Redraw aus).
+        _fotoLayer.Enabled = _fotoAn;
+        _vektorenVerborgen = false;
+        if (!_fotoAn) { _fotoLayer.Features = new List<IFeature>(); _fotoLayer.DataHasChanged(); _map.RefreshGraphics(); return; }
         var sichtbar = new HashSet<int>(_gefiltert.Select(t => t.Id));
         var features = new List<IFeature>();
         foreach (var f in _fotos.Where(p => sichtbar.Contains(p.TourId)))
@@ -1512,6 +1533,123 @@ public partial class UebersichtPage : ContentPage
         }
         _fotoLayer.Features = features;
         _fotoLayer.DataHasChanged();
+        _map.RefreshGraphics();
+    }
+
+    // ---- Gruppe (Live-Position teilen) ----------------------------------------
+    private async void OnGruppe(object? sender, EventArgs e)
+    {
+        if (!GruppeLive.Aktiv)
+        {
+            string erstellen = L.T("gruppe_erstellen"), beitreten = L.T("gruppe_beitreten_btn");
+            string wahl = await DisplayActionSheet(L.T("gruppe_titel"), L.T("abbrechen"), null, erstellen, beitreten);
+            if (wahl == erstellen) await GruppeErstellen();
+            else if (wahl == beitreten) await GruppeBeitreten();
+            return;
+        }
+        string teilen = L.T("gruppe_teilen"), verlassen = L.T("gruppe_verlassen"), nameA = L.T("gruppe_name_aendern");
+        string w = await DisplayActionSheet(L.T("gruppe_aktiv_titel", GruppeLive.Code), L.T("abbrechen"), verlassen, teilen, nameA);
+        if (w == teilen) await GruppeTeilen();
+        else if (w == verlassen) { GruppeLive.Verlassen(); StatusKurz(L.T("gruppe_verlassen_ok"), 3); }
+        else if (w == nameA) await GruppeNameAendern();
+    }
+
+    private async Task GruppeErstellen()
+    {
+        string vorgabe = GruppeLive.Anzeigename();
+        string name = await DisplayPromptAsync(L.T("gruppe_name_titel"), L.T("gruppe_name_msg"),
+            L.T("gruppe_beitreten_btn"), L.T("abbrechen"), null, maxLength: 40, initialValue: vorgabe);
+        if (name == null) return;
+        GruppeLive.Beitreten(GruppeLive.NeuerCode(), string.IsNullOrWhiteSpace(name) ? vorgabe : name.Trim());
+        if (_letzteGeo is { } g) GruppeLive.Sende(g.lat, g.lon);
+        await GruppeTeilen();   // direkt den Einladungs-Link teilen
+    }
+
+    private async Task GruppeBeitreten()
+    {
+        string code = await DisplayPromptAsync(L.T("gruppe_titel"), L.T("gruppe_code_msg"),
+            L.T("gruppe_beitreten_btn"), L.T("abbrechen"), L.T("gruppe_code_placeholder"), maxLength: 32);
+        code = GruppeService.CodeSaeubern(code);
+        if (code.Length == 0) return;
+        string vorgabe = GruppeLive.Anzeigename();
+        string name = await DisplayPromptAsync(L.T("gruppe_name_titel"), L.T("gruppe_name_msg"),
+            L.T("gruppe_beitreten_btn"), L.T("abbrechen"), null, maxLength: 40, initialValue: vorgabe);
+        if (name == null) return;
+        GruppeLive.Beitreten(code, string.IsNullOrWhiteSpace(name) ? vorgabe : name.Trim());
+        if (_letzteGeo is { } g) GruppeLive.Sende(g.lat, g.lon);
+        StatusKurz(L.T("gruppe_beigetreten", code), 3);
+    }
+
+    private async Task GruppeTeilen()
+    {
+        try
+        {
+            await Share.Default.RequestAsync(new ShareTextRequest
+            {
+                Title = L.T("gruppe_titel"),
+                Text = L.T("gruppe_teilen_text", GruppeLive.TeilenLink(GruppeLive.Code)),
+            });
+        }
+        catch (Exception ex) { Debug.WriteLine(ex); }
+    }
+
+    private async Task GruppeNameAendern()
+    {
+        string vorgabe = GruppeLive.Anzeigename();
+        string name = await DisplayPromptAsync(L.T("gruppe_name_titel"), L.T("gruppe_name_msg"),
+            L.T("ok"), L.T("abbrechen"), null, maxLength: 40, initialValue: vorgabe);
+        if (string.IsNullOrWhiteSpace(name)) return;
+        Einst.GruppenName = name.Trim();
+    }
+
+    // Mitglieder als beschriftete Marker zeichnen (mich selbst auslassen; frisch=orange, alt=grau).
+    private void GruppeMarkerZeichnen(List<GruppenMitglied> mitglieder)
+    {
+        string ich = GruppeLive.Anzeigename();
+        var feats = new List<IFeature>();
+        int andere = 0;
+        foreach (var m in mitglieder)
+        {
+            if (string.Equals(m.Name, ich, StringComparison.OrdinalIgnoreCase)) continue;
+            andere++;
+            var (x, y) = SphericalMercator.FromLonLat(m.Lng, m.Lat);
+            string farbe = m.AlterS < 90 ? "#f59e0b" : "#94a3b8";
+            var f = new GeometryFeature { Geometry = new NetTopologySuite.Geometries.Point(x, y) };
+            f.Styles.Add(new SymbolStyle
+            {
+                SymbolType = SymbolType.Ellipse, SymbolScale = 0.7,
+                Fill = new Mapsui.Styles.Brush(Mapsui.Styles.Color.FromString(farbe)),
+                Outline = new Pen(Mapsui.Styles.Color.White, 2),
+            });
+            f.Styles.Add(new LabelStyle
+            {
+                Text = m.Name, Offset = new Offset(0, 20), Font = new Mapsui.Styles.Font { Size = 12, Bold = true },
+                ForeColor = Mapsui.Styles.Color.FromString("#0f172a"),
+                BackColor = new Mapsui.Styles.Brush(Mapsui.Styles.Color.White),
+                Halo = new Pen(Mapsui.Styles.Color.White, 2),
+            });
+            feats.Add(f);
+        }
+        _gruppeLayer.Features = feats;
+        _gruppeLayer.DataHasChanged();
+        _map.RefreshGraphics();
+        if (GruppeBadgeText != null) GruppeBadgeText.Text = andere.ToString();
+        if (GruppeBadge != null) GruppeBadge.IsVisible = GruppeLive.Aktiv;
+    }
+
+    private void GruppeIconAktualisieren()
+    {
+        bool aktiv = GruppeLive.Aktiv;
+        if (GruppeBorder != null)
+            GruppeBorder.BackgroundColor = aktiv ? Microsoft.Maui.Graphics.Color.FromArgb("#16a34a") : Microsoft.Maui.Graphics.Colors.White;
+        if (GruppeBadge != null) GruppeBadge.IsVisible = aktiv;
+        if (aktiv && GruppeBadgeText != null && string.IsNullOrEmpty(GruppeBadgeText.Text)) GruppeBadgeText.Text = "0";
+        if (!aktiv)
+        {
+            _gruppeLayer.Features = new List<IFeature>();
+            _gruppeLayer.DataHasChanged();
+            _map.RefreshGraphics();
+        }
     }
 
     // ---- Status ---------------------------------------------------------------
