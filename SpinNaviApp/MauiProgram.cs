@@ -20,6 +20,17 @@ public static class MauiProgram
 				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
 			});
 
+#if ANDROID || IOS
+		// GPU-Rendering der Karte erzwingen (SKGLView statt CPU-SKCanvasView). Mapsui lässt GPU auf
+		// MAUI per Default aus, weil SkiaSharp.Views.Maui KEINEN SKGLView-Handler registriert. Wir
+		// liefern das GL-Rendering über den Kompatibilitäts-Renderer nach. Ohne GPU ruckelt der
+		// Pinch-Zoom auf schwacher Hardware (CPU-Rendering jedes Frame).
+		Mapsui.UI.Maui.MapControl.UseGPU = true;
+		builder.ConfigureMauiHandlers(handlers =>
+			handlers.AddHandler(typeof(SkiaSharp.Views.Maui.Controls.SKGLView),
+				typeof(SkiaSharp.Views.Maui.Controls.Compatibility.SKGLViewRenderer)));
+#endif
+
 #if ANDROID && DEBUG
 		// Nur Debug: Der einzige WebView ist der Selbsttest (TestPage). Ihn so
 		// konfigurieren, dass die spin1more-Navigation darin läuft (JavaScript,
