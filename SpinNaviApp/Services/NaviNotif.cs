@@ -54,6 +54,26 @@ public static class NaviNotif
 #endif
     }
 
+    /// <summary>Kurzer Hinweis-Ton (Benachrichtigungston) für die Einstellung „Benachrichtigungstöne":
+    /// wird bei einer Neuberechnung der Route und bei einer neuen Abbiege-Ansage gespielt. Einfacher,
+    /// plattformnaher Weg: Android = System-Benachrichtigungston, iOS/macOS = System-Sound. Unter
+    /// Windows ist kein einfacher Standard-Beep verfügbar → dort bewusst ohne Ton.</summary>
+    public static void Signalton()
+    {
+#if ANDROID
+        try
+        {
+            var uri = Android.Media.RingtoneManager.GetDefaultUri(Android.Media.RingtoneType.Notification);
+            var rt = Android.Media.RingtoneManager.GetRingtone(Android.App.Application.Context, uri);
+            rt?.Play();
+        }
+        catch (System.Exception ex) { Debug.WriteLine(ex); }
+#elif IOS || MACCATALYST
+        try { new AudioToolbox.SystemSound(1007).PlaySystemSound(); }
+        catch (System.Exception ex) { Debug.WriteLine(ex); }
+#endif
+    }
+
     /// <summary>Entfernt den Abbiege-Hinweis (Navigation beendet/Ziel erreicht).</summary>
     public static void Aus()
     {

@@ -45,10 +45,8 @@ public class EinstNavigationTests : AppBasis
     [TestCase("Lautstärke der Anweisungen")]
     [TestCase("Benachrichtigungstöne")]
     [TestCase("Sprache der Navigation")]
-    [TestCase("Bluetooth-Wiedergabe")]
-    [TestCase("KARTENANSICHT")]
-    [TestCase("Geneigte Ansicht")]
-    [TestCase("2D-Ansicht")]
+    // „Bluetooth-Wiedergabe" + „KARTENANSICHT/Geneigte Ansicht/2D-Ansicht" wurden entfernt
+    // (nicht unterstützt: 3D in Mapsui nicht möglich, BT-Audio-Routing nicht umgesetzt).
     public void Navigation_zeigt(string label)
         => Assert.That(DaText(label), Is.True, $"'{label}' fehlt im Tab Navigation");
 }
@@ -66,8 +64,7 @@ public class EinstKarteTests : AppBasis
     [TestCase("Satellit")]
     [TestCase("Dunkel")]
     [TestCase("Wander-/Radwege-Overlay")]
-    [TestCase("Schattiertes Relief")]
-    [TestCase("Hangneigung")]
+    // „Schattiertes Relief" + „Hangneigung" entfernt (keine zuverlässige freie Tile-Quelle).
     [TestCase("Manuelle Kartendrehung")]
     [TestCase("OFFLINE-KARTEN")]
     [TestCase("Zwischenspeicher")]

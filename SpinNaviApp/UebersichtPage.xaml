@@ -90,6 +90,18 @@
                 <SearchBar Grid.Row="1" x:Name="Suchfeld" AutomationId="osm_suchfeld" Placeholder="{loc:Translate ue_such_placeholder}"
                            TextChanged="OnSuche" Margin="12,0,12,8" />
 
+                <!-- Kompakter Suchmodus (Einst.KompakteSuche): statt des dauerhaften Suchfelds nur ein
+                     Such-Symbol; ein Tipp blendet das Suchfeld ein. Sichtbarkeit: KompakteSucheAnwenden(). -->
+                <Border Grid.Row="1" x:Name="KompaktSuchBtn" AutomationId="osm_suche_kompakt" IsVisible="False"
+                        HorizontalOptions="Start" Margin="12,0,12,8" Padding="14,9"
+                        BackgroundColor="#f1f5f9" StrokeThickness="0" StrokeShape="RoundRectangle 12">
+                    <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnKompaktSuche" /></Border.GestureRecognizers>
+                    <HorizontalStackLayout Spacing="8">
+                        <Label Text="🔍" FontSize="16" VerticalOptions="Center" />
+                        <Label Text="{loc:Translate ue_suche_kompakt}" FontSize="14" TextColor="#64748b" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </Border>
+
                 <!-- Aufgeklappt: Umkreis-Suche, Radius, Filter-Chips -->
                 <ScrollView Grid.Row="2">
                     <VerticalStackLayout Padding="14,0,14,16" Spacing="12">

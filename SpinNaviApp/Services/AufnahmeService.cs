@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Maui.Networking;
 using Microsoft.Maui.Storage;
 
 namespace SpinNaviApp;
@@ -42,10 +43,23 @@ public static class AufnahmeService
         catch (Exception ex) { Debug.WriteLine(ex); return 0; }
     }
 
+    /// <summary>Liefert true, wenn das Gerät gerade über WLAN verbunden ist. Für die Einstellung
+    /// „Fotos nur über WLAN": ohne WLAN werden Aufnahmen-Uploads aufgeschoben. Bei einem Fehler in der
+    /// Verbindungsabfrage wird NICHT blockiert (true), damit Uploads nicht dauerhaft hängen bleiben.</summary>
+    private static bool ImWlan()
+    {
+        try { return Connectivity.Current.ConnectionProfiles.Contains(ConnectionProfile.WiFi); }
+        catch (Exception ex) { Debug.WriteLine(ex); return true; }
+    }
+
     /// <summary>Lädt alle noch nicht synchronisierten Aufnahmen hoch (beim App-Ende / Start).</summary>
     public static async Task<int> UploadeAusstehendAsync()
     {
         if (!Auth.Angemeldet) return 0;
+        // „Fotos nur über WLAN" (Einst.FotosNurWlan): die gespeicherten Aufnahmen (Track + Bilder)
+        // ohne WLAN NICHT über Mobilfunk hochladen, sondern aufschieben – die .json-Dateien bleiben
+        // „pending" liegen und gehen beim nächsten Aufruf (mit WLAN) hoch. Schont mobiles Datenvolumen.
+        if (Einst.FotosNurWlan && !ImWlan()) return 0;
         int n = 0;
         try
         {

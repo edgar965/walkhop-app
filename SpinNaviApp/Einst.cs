@@ -149,7 +149,8 @@ public static class Einst
     }
 
     /// <summary>Kompakter Suchmodus: Suchfeld durch Such-Symbol ersetzen.
-    /// (Gespeichert, aber noch nicht im UI wirksam – geplant.)</summary>
+    /// (Wirksam: <see cref="UebersichtPage"/> blendet im Peek statt des dauerhaften Suchfelds nur ein
+    /// Such-Symbol ein; ein Tipp darauf zeigt das Suchfeld. Wird beim Erscheinen der Seite angewandt.)</summary>
     public static bool KompakteSuche
     {
         get => Preferences.Get("kompakte_suche", false);
@@ -171,8 +172,10 @@ public static class Einst
         set => Preferences.Set("fotos_beim_start", value);
     }
 
-    /// <summary>Fotos nur über WLAN hochladen (nicht über Mobilfunk).
-    /// (Gespeichert, aber Foto-Upload-Drosselung noch nicht angeschlossen – geplant.)</summary>
+    /// <summary>Aufnahmen/Fotos nur über WLAN hochladen (nicht über Mobilfunk).
+    /// (Wirksam: <see cref="AufnahmeService.UploadeAusstehendAsync"/> schiebt den Upload der gespeicherten
+    /// Aufnahmen auf, solange nur Mobilfunk verfügbar ist – sie bleiben „pending" und gehen bei der
+    /// nächsten WLAN-Verbindung hoch.)</summary>
     public static bool FotosNurWlan
     {
         get => Preferences.Get("fotos_wlan", true);
@@ -196,40 +199,24 @@ public static class Einst
         set => Preferences.Set("ansage_vol", value);
     }
 
-    /// <summary>Benachrichtigungstöne abspielen (Tempo/Reroute).
-    /// (Gespeichert, aber es werden derzeit keine Töne erzeugt – geplant.)</summary>
+    /// <summary>Benachrichtigungstöne abspielen (Reroute/neue Abbiege-Ansage).
+    /// (Wirksam: <see cref="MainPage"/> spielt über <see cref="NaviNotif.Signalton"/> einen kurzen
+    /// Hinweis-Ton bei „Route neu berechnet" und bei jedem neuen Abbiege-Manöver. Ton-Wiedergabe
+    /// plattformbedingt nur auf Android/iOS; unter Windows ohne Ton.)</summary>
     public static bool Benachrichtigungstoene
     {
         get => Preferences.Get("benach_toene", true);
         set => Preferences.Set("benach_toene", value);
     }
 
-    /// <summary>Kartenansicht: "3d" (geneigt) | "2d".
-    /// (Gespeichert; geneigte 3D-Ansicht bietet die 2D-Kartenengine Mapsui nicht – geplant.)</summary>
-    public static string Kartenansicht
-    {
-        get => Preferences.Get("kartenansicht", "2d");
-        set => Preferences.Set("kartenansicht", value);
-    }
+    // Entfernt (waren reine Schein-Schalter ohne Wirkung – darum ganz aus der App genommen):
+    //  • Kartenansicht "3d"/"2d": Mapsui ist eine 2D-Engine ohne Neigung → keine 3D-Ansicht möglich.
+    //  • Schattiertes Relief (Hillshade): keine zuverlässige freie Tile-Quelle verfügbar.
+    //  • Hangneigung (Slope-Overlay): keine zuverlässige freie Tile-Quelle verfügbar.
+    //  • Bluetooth-Wiedergabe: Audio-Routing wird nicht umgesetzt (Systemroute gilt).
+    // Die zugehörigen Properties/Schalter/Texte wurden vollständig entfernt.
 
     // ---- Karte (Tab „Karte") ---------------------------------------------
-    /// <summary>Schattiertes Relief (Hillshade, nur online).
-    /// (Gespeichert; eigene Hillshade-Ebene noch nicht angeschlossen – die Wander-Karte
-    /// OpenTopoMap zeigt bereits Relief. Geplant.)</summary>
-    public static bool SchattiertesRelief
-    {
-        get => Preferences.Get("relief", false);
-        set => Preferences.Set("relief", value);
-    }
-
-    /// <summary>Hangneigungs-Overlay (&gt;30°/38°/45°, nur online).
-    /// (Gespeichert, aber Overlay-Ebene noch nicht angeschlossen – geplant.)</summary>
-    public static bool Hangneigung
-    {
-        get => Preferences.Get("hangneigung", false);
-        set => Preferences.Set("hangneigung", value);
-    }
-
     /// <summary>Karte darf manuell gedreht werden (Zwei-Finger-Geste).</summary>
     public static bool ManuelleDrehung
     {

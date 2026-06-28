@@ -182,6 +182,7 @@ public partial class UebersichtPage : ContentPage
         base.OnAppearing();
         _ = SensorenStarten();   // Live-Standort-Beam + Kompass (jedes Mal, da OnDisappearing stoppt)
         KompassIconAktualisieren();
+        KompakteSucheAnwenden();   // kompakten Suchmodus aus den Einstellungen übernehmen (beim Erscheinen)
         if (_geladen) return;
         _geladen = true;
         Status(L.T("ue_st_touren_laden"));
@@ -973,6 +974,24 @@ public partial class UebersichtPage : ContentPage
         _suche = (e.NewTextValue ?? "").Trim();
         var meins = _suche;   // Debounce: erst nach 280 ms ohne weitere Eingabe filtern/zeichnen
         Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(280), () => { if (_suche == meins) Anwenden(); });
+    }
+
+    // Kompakter Suchmodus (Einst.KompakteSuche): ist er aktiv, zeigt der Peek statt des dauerhaft
+    // sichtbaren Suchfelds nur ein Such-Symbol; ein Tipp darauf blendet das Suchfeld ein. Wird beim
+    // Erscheinen der Seite angewandt, damit eine Änderung in den Einstellungen sofort greift.
+    private void KompakteSucheAnwenden()
+    {
+        bool kompakt = Einst.KompakteSuche;
+        Suchfeld.IsVisible = !kompakt;
+        KompaktSuchBtn.IsVisible = kompakt;
+    }
+
+    // Tipp auf das Such-Symbol: Suchfeld einblenden (und fokussieren), Symbol ausblenden.
+    private void OnKompaktSuche(object? sender, EventArgs e)
+    {
+        KompaktSuchBtn.IsVisible = false;
+        Suchfeld.IsVisible = true;
+        try { Suchfeld.Focus(); } catch (Exception ex) { Debug.WriteLine(ex); }
     }
 
     private async void OnStandort(object? sender, EventArgs e)

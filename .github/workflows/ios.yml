@@ -90,6 +90,7 @@ jobs:
             -p:RuntimeIdentifier=ios-arm64 \
             -p:ApplicationId=${{ vars.IOS_BUNDLE_ID }} \
             -p:ApplicationTitle=WalkHop \
+            -p:ApplicationVersion=${{ github.run_number }} \
             -p:CodesignKey="${{ vars.IOS_SIGNING_IDENTITY }}"
 
       - name: IPA als Artefakt sichern

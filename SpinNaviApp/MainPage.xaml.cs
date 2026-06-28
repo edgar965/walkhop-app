@@ -94,6 +94,7 @@ public partial class MainPage : ContentPage
     private string _letztNotifText = "";   // letzter an die Uhr gespiegelte Abbiege-Hinweis
     private double _navGesamt;
     private int _letztGesprochen = -1, _vorabGesprochen = -1, _navIdx;
+    private int _tonManoever = -1;   // Manöver, für das zuletzt ein Benachrichtigungston gespielt wurde (1×/Manöver)
     private bool _zielAngesagt;
     // Auto-Reroute + Tour-Zustand
     private bool _istTour, _reroutLaeuft;
@@ -654,6 +655,7 @@ public partial class MainPage : ContentPage
         _ankunftText = ankunft;
         _letztGesprochen = -1;
         _vorabGesprochen = -1;
+        _tonManoever = -1;
         _navIdx = 0;
         _zielAngesagt = false;
         NaviPanel.IsVisible = true;
@@ -700,6 +702,7 @@ public partial class MainPage : ContentPage
         if (_navPunkte == null || _navPunkte.Count < 2) return;
         _navAktiv = true;
         _letztNotifText = "";
+        _tonManoever = -1;
         _ = NaviNotif.BerechtigungAsync();   // Notification-Berechtigung fürs Watch-Spiegeln
         NaviZustandAnzeigen();
         SheetSetzen(false);   // Schublade auf kompakten Peek einklappen
@@ -777,6 +780,13 @@ public partial class MainPage : ContentPage
             // gekoppelten Uhren (Apple Watch / Wear OS / Bluetooth-Uhren), ohne eigene Watch-App.
             string notifTxt = $"{FmtKm(distNext)}: {Saubere(_navManoever[next].Anweisung)}";
             if (notifTxt != _letztNotifText) { _letztNotifText = notifTxt; NaviNotif.Zeige(L.T("notif_navigation"), notifTxt); }
+            // Benachrichtigungston: einmal je Manöver, sobald es in den Ansagebereich (<160 m) kommt –
+            // unabhängig von den Sprachansagen (Einst.Ton), gesteuert über Einst.Benachrichtigungstoene.
+            if (Einst.Benachrichtigungstoene && _tonManoever != next && distNext < 160)
+            {
+                _tonManoever = next;
+                NaviNotif.Signalton();
+            }
             // Zweistufige Ansage: Vorab „In N Metern …" (45–160 m), dann am Manöver die Anweisung.
             if (Einst.Ton)
             {
@@ -829,6 +839,7 @@ public partial class MainPage : ContentPage
                     komb.AddRange(rest);
                     await NavStartGetracet(komb, "", _ankunftText, fit: false);   // echte Manöver, ohne Kamera-Sprung
                     Status(L.T("st_route_neu"), autoAus: true);
+                    if (Einst.Benachrichtigungstoene) NaviNotif.Signalton();   // Hinweis-Ton bei „Route neu"
                 }
             }
             else if (_navZiel is { } z)
@@ -840,6 +851,7 @@ public partial class MainPage : ContentPage
                     var ank = DateTime.Now.AddMinutes(r.Minuten).ToString("HH:mm");
                     NavStart(r.Punkte, r.Manoever, L.T("route_zusammenfassung", FmtKmVon(r.Km), r.Minuten), ank, fitKamera: false);
                     Status(L.T("st_route_neu"), autoAus: true);
+                    if (Einst.Benachrichtigungstoene) NaviNotif.Signalton();   // Hinweis-Ton bei „Route neu"
                 }
             }
         }
@@ -994,7 +1006,7 @@ public partial class MainPage : ContentPage
         if (_navPunkte == null) { NavigationBeenden(); return; }   // ohne Route: ganz schließen
         _navAktiv = false;
         _folgen = false;
-        _letztGesprochen = -1; _zielAngesagt = false;
+        _letztGesprochen = -1; _zielAngesagt = false; _tonManoever = -1;
         _letztNotifText = ""; NaviNotif.Aus();   // Watch-Hinweis entfernen
         RichtungAus();               // lila Richtungspfeil entfernen (Vorschau zeigt keinen)
         AnweisungBox.IsVisible = false;
@@ -1008,7 +1020,7 @@ public partial class MainPage : ContentPage
     private void NavigationBeenden()
     {
         _navPunkte = null; _navKum = null; _navManoever = new();
-        _letztGesprochen = -1; _zielAngesagt = false; _startUeberschreibung = null;
+        _letztGesprochen = -1; _zielAngesagt = false; _tonManoever = -1; _startUeberschreibung = null;
         _letztNotifText = ""; NaviNotif.Aus();   // Watch-Hinweis entfernen
         _alternativen.Clear(); AltChip.IsVisible = false;
         _navAktiv = false;

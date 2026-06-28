@@ -74,6 +74,7 @@ public static class Texte
         ["einst_fotosstart_titel"] = "Fotos beim Start anzeigen",
         ["einst_fotosstart_sub"] = "Foto-Ebene der Übersichtskarte direkt beim App-Start aktivieren (Standard: aus).",
         ["einst_fotoswlan_titel"] = "Fotos nur über WLAN hochladen",
+        ["einst_fotoswlan_sub"] = "Aufnahmen werden erst bei WLAN hochgeladen – schont mobiles Datenvolumen.",
 
         // ---- Einstellungen: Navigation ----
         ["einst_sec_fortbewegung"] = "FORTBEWEGUNG",
@@ -100,12 +101,6 @@ public static class Texte
         ["einst_benachr_titel"] = "Benachrichtigungstöne abspielen",
         ["einst_benachr_sub"] = "Höchstgeschwindigkeit, Neuberechnung der Route beim Verlassen.",
         ["einst_navisprache"] = "Sprache der Navigation",
-        ["einst_bluetooth_titel"] = "Bluetooth-Wiedergabe",
-        ["einst_bluetooth_standard"] = "Standard",
-        ["bluetooth_text"] = "Die Auswahl der Bluetooth-Wiedergabe folgt in einer späteren Version.",
-        ["einst_sec_kartenansicht"] = "KARTENANSICHT",
-        ["ka_geneigt"] = "Geneigte Ansicht",
-        ["ka_2d"] = "2D-Ansicht",
 
         // ---- Einstellungen: Karte ----
         ["einst_sec_kartenmodus"] = "KARTENMODUS",
@@ -115,10 +110,6 @@ public static class Texte
         ["km_dunkel"] = "Dunkel",
         ["einst_overlay_titel"] = "Wander-/Radwege-Overlay",
         ["einst_overlay_sub"] = "Markierte Wander- und Radrouten einblenden.",
-        ["einst_relief_titel"] = "Schattiertes Relief",
-        ["einst_nur_online"] = "Nur online verfügbar",
-        ["einst_hangneigung_titel"] = "Hangneigung",
-        ["einst_hangneigung_sub"] = ">30°, 38°, 45° (nur online verfügbar)",
         ["einst_drehung_titel"] = "Manuelle Kartendrehung",
         ["einst_drehung_sub"] = "Karte kann manuell gedreht werden.",
         ["einst_sec_standardpunkt"] = "STANDARD-PUNKT",
@@ -273,6 +264,7 @@ public static class Texte
 
         // ---- UebersichtPage ----
         ["ue_such_placeholder"] = "Nach Name suchen …",
+        ["ue_suche_kompakt"] = "Suchen",
         ["ue_standort_btn"] = "📍 Standort",
         ["ue_ort_placeholder"] = "Ort/Adresse als Mittelpunkt",
         ["ue_umkreis"] = "Umkreis-Suche",
@@ -410,6 +402,7 @@ public static class Texte
         ["einst_fotosstart_titel"] = "Show photos at start",
         ["einst_fotosstart_sub"] = "Enable the overview map's photo layer at app start (default: off).",
         ["einst_fotoswlan_titel"] = "Upload photos over Wi-Fi only",
+        ["einst_fotoswlan_sub"] = "Recordings are uploaded only on Wi-Fi – saves mobile data.",
 
         // Settings: Navigation
         ["einst_sec_fortbewegung"] = "TRAVEL MODE",
@@ -436,12 +429,6 @@ public static class Texte
         ["einst_benachr_titel"] = "Play notification sounds",
         ["einst_benachr_sub"] = "Speed limit, route recalculation when leaving the route.",
         ["einst_navisprache"] = "Navigation language",
-        ["einst_bluetooth_titel"] = "Bluetooth playback",
-        ["einst_bluetooth_standard"] = "Default",
-        ["bluetooth_text"] = "Bluetooth playback selection will be added in a later version.",
-        ["einst_sec_kartenansicht"] = "MAP VIEW",
-        ["ka_geneigt"] = "Tilted view",
-        ["ka_2d"] = "2D view",
 
         // Settings: Map
         ["einst_sec_kartenmodus"] = "MAP STYLE",
@@ -451,10 +438,6 @@ public static class Texte
         ["km_dunkel"] = "Dark",
         ["einst_overlay_titel"] = "Hiking/cycling trails overlay",
         ["einst_overlay_sub"] = "Show marked hiking and cycling routes.",
-        ["einst_relief_titel"] = "Shaded relief",
-        ["einst_nur_online"] = "Online only",
-        ["einst_hangneigung_titel"] = "Slope angle",
-        ["einst_hangneigung_sub"] = ">30°, 38°, 45° (online only)",
         ["einst_drehung_titel"] = "Manual map rotation",
         ["einst_drehung_sub"] = "The map can be rotated manually.",
         ["einst_sec_standardpunkt"] = "DEFAULT POINT",
@@ -609,6 +592,7 @@ public static class Texte
 
         // UebersichtPage
         ["ue_such_placeholder"] = "Search by name …",
+        ["ue_suche_kompakt"] = "Search",
         ["ue_standort_btn"] = "📍 Location",
         ["ue_ort_placeholder"] = "Place/address as center",
         ["ue_umkreis"] = "Radius search",

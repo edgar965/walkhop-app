@@ -43,12 +43,9 @@ public partial class EinstellungenPage : ContentPage
         BenachrichtigungSchalter.IsToggled = Einst.Benachrichtigungstoene;
         NaviSpracheLabelSetzen();
         FarbmodusMarkieren();
-        KartenansichtMarkieren();
         // Karte
         KartenmodusMarkieren();
         OverlaySchalter.IsToggled = Einst.Wanderwege;
-        ReliefSchalter.IsToggled = Einst.SchattiertesRelief;
-        HangneigungSchalter.IsToggled = Einst.Hangneigung;
         DrehungSchalter.IsToggled = Einst.ManuelleDrehung;
         _laedt = false;
 
@@ -161,21 +158,6 @@ public partial class EinstellungenPage : ContentPage
         SegSet(FmNacht, LblFmNacht, Einst.Farbmodus == "nacht");
     }
 
-    private void OnKartenansicht(object? sender, TappedEventArgs e)
-    {
-        Einst.Kartenansicht = e.Parameter as string ?? "2d";
-        KartenansichtMarkieren();
-    }
-
-    private void KartenansichtMarkieren()
-    {
-        SegSet(KaGeneigt, LblKaGeneigt, Einst.Kartenansicht == "3d");
-        SegSet(Ka2d, LblKa2d, Einst.Kartenansicht == "2d");
-    }
-
-    private async void OnBluetooth(object? sender, TappedEventArgs e) =>
-        await DisplayAlert(L.T("einst_bluetooth_titel"), L.T("bluetooth_text"), L.T("ok"));
-
     // ---- Fortbewegung / Wegtyp / Routenoptionen (vom Navi-Sheet hierher verschoben) ----
     private void OnFortbewegung(object? sender, TappedEventArgs e)
     {
@@ -224,8 +206,6 @@ public partial class EinstellungenPage : ContentPage
 
     private void OnOverlay(object? sender, ToggledEventArgs e) { if (!_laedt) Einst.Wanderwege = e.Value; }
 
-    private void OnRelief(object? sender, ToggledEventArgs e) { if (!_laedt) Einst.SchattiertesRelief = e.Value; }
-    private void OnHangneigung(object? sender, ToggledEventArgs e) { if (!_laedt) Einst.Hangneigung = e.Value; }
     private void OnDrehung(object? sender, ToggledEventArgs e) { if (!_laedt) Einst.ManuelleDrehung = e.Value; }
 
     private void CacheGroesseAnzeigen()
