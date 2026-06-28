@@ -199,14 +199,25 @@ public static class Einst
         set => Preferences.Set("ansage_vol", value);
     }
 
-    /// <summary>Benachrichtigungstöne abspielen (Reroute/neue Abbiege-Ansage).
+    /// <summary>Benachrichtigungs-/Abbiege-Töne abspielen (Reroute/neue Abbiege-Ansage).
     /// (Wirksam: <see cref="MainPage"/> spielt über <see cref="NaviNotif.Signalton"/> einen kurzen
     /// Hinweis-Ton bei „Route neu berechnet" und bei jedem neuen Abbiege-Manöver. Ton-Wiedergabe
-    /// plattformbedingt nur auf Android/iOS; unter Windows ohne Ton.)</summary>
+    /// plattformbedingt nur auf Android/iOS; unter Windows ohne Ton.)
+    /// Default AUS – der Nutzer wird beim Erststart einmalig gefragt (<see cref="ErstkonfigErledigt"/>).</summary>
     public static bool Benachrichtigungstoene
     {
-        get => Preferences.Get("benach_toene", true);
+        get => Preferences.Get("benach_toene", false);
         set => Preferences.Set("benach_toene", value);
+    }
+
+    /// <summary>Wurde die einmalige Erst-Konfiguration (Sprachansagen + Abbiege-Töne) nach der
+    /// Installation bereits durchlaufen? Default false; wird nach der Erststart-Abfrage auf true
+    /// gesetzt und via Preferences persistiert – bleibt bei App-Updates erhalten und wird nur bei
+    /// frischer Installation wieder zurückgesetzt.</summary>
+    public static bool ErstkonfigErledigt
+    {
+        get => Preferences.Get("erstkonfig_erledigt", false);
+        set => Preferences.Set("erstkonfig_erledigt", value);
     }
 
     // Entfernt (waren reine Schein-Schalter ohne Wirkung – darum ganz aus der App genommen):

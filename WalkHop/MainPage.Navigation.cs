@@ -119,6 +119,7 @@ public partial class MainPage
 
     // ---- Vorschau ⇄ Lauf (maps.me-Stil) ----
     private bool _navAktiv;
+    private long _navStartMs;   // Start-/Reroute-Zeitpunkt → kurze Reroute-Schonfrist (s. AktualisiereNav)
 
     private void NaviZustandAnzeigen()
     {
@@ -149,6 +150,7 @@ public partial class MainPage
     {
         if (_navPunkte == null || _navPunkte.Count < 2) return;
         _navAktiv = true;
+        _navStartMs = Environment.TickCount64;   // Schonfrist: direkt nach Start/Reroute nicht sofort wieder umrouten
         _letztNotifText = "";
         _tonManoever = -1;
         _ = NaviNotif.BerechtigungAsync();   // Notification-Berechtigung fürs Watch-Spiegeln
@@ -177,8 +179,11 @@ public partial class MainPage
         double rest = NaviLogik.Reststrecke(_navGesamt, entlang);
         RichtungPfeilAktualisieren(entlang);   // lila Richtungspfeil voraus mitführen
 
-        // Auto-Reroute bei Abweichung von der Route (>50 m), gedrosselt.
-        if (NaviLogik.IstAbseitsRoute(abstand, RerouteSchwelleMeter) && !_reroutLaeuft && Environment.TickCount64 - _letztRerouteMs > 6000)
+        // Auto-Reroute bei Abweichung von der Route (>50 m), gedrosselt. Schonfrist nach Start/Reroute
+        // (10 s): verhindert den spurious Sofort-Reroute am (Rundtour-)Start, der die volle Tour durch
+        // ein Fragment ersetzt + zurück in die „Start"-Vorschau springt, bevor der Nutzer auf der Route ist.
+        if (NaviLogik.IstAbseitsRoute(abstand, RerouteSchwelleMeter) && !_reroutLaeuft
+            && Environment.TickCount64 - _letztRerouteMs > 6000 && Environment.TickCount64 - _navStartMs > 10000)
         {
             _letztRerouteMs = Environment.TickCount64;
             _ = Reroute(lat, lon);
@@ -279,6 +284,7 @@ public partial class MainPage
                     var komb = new List<(double lat, double lon)>(r.Punkte);
                     komb.AddRange(rest);
                     await NavStartGetracet(komb, "", _ankunftText, fit: false);   // echte Manöver, ohne Kamera-Sprung
+                    if (_seiteLebt) NaviAktivieren();   // Reroute läuft WÄHREND aktiver Navigation → aktiv bleiben (nicht zurück in die „Start"-Vorschau)
                     Status(L.T("st_route_neu"), autoAus: true);
                     if (Einst.Benachrichtigungstoene) NaviNotif.Signalton();   // Hinweis-Ton bei „Route neu"
                 }
@@ -291,6 +297,7 @@ public partial class MainPage
                     _alternativen = alt; _navMinuten = r.Minuten;
                     var ank = DateTime.Now.AddMinutes(r.Minuten).ToString("HH:mm");
                     NavStart(r.Punkte, r.Manoever, L.T("route_zusammenfassung", FmtKmVon(r.Km), r.Minuten), ank, fitKamera: false);
+                    if (_seiteLebt) NaviAktivieren();   // Reroute läuft WÄHREND aktiver Navigation → aktiv bleiben (nicht zurück in die „Start"-Vorschau)
                     Status(L.T("st_route_neu"), autoAus: true);
                     if (Einst.Benachrichtigungstoene) NaviNotif.Signalton();   // Hinweis-Ton bei „Route neu"
                 }

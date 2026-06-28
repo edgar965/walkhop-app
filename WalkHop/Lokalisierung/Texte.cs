@@ -30,9 +30,16 @@ public static class Texte
         // Gemeinsame Begriffe / Dialog-Knöpfe
         ["abbrechen"] = "Abbrechen",
         ["ok"] = "OK",
+        ["ja"] = "Ja",
+        ["nein"] = "Nein",
         ["schliessen"] = "Schließen",
         ["ziel"] = "Ziel",
         ["mein_standort"] = "Mein Standort",
+
+        // Erststart-Abfrage (einmalig nach Installation): Sprachansagen + Abbiege-Töne
+        ["erst_titel"] = "Willkommen bei WalkHop",
+        ["erst_sprache_frage"] = "Sprachansagen während der Navigation aktivieren?",
+        ["erst_toene_frage"] = "Abbiege-Töne abspielen?",
 
         // Gruppen-Position (Live-Standort teilen)
         ["gruppe_titel"] = "Gruppe",
@@ -103,8 +110,8 @@ public static class Texte
         ["einst_sec_tonsprache"] = "TON UND SPRACHE",
         ["einst_sprachnavi"] = "Sprachnavigation",
         ["einst_lautstaerke"] = "Lautstärke der Anweisungen",
-        ["einst_benachr_titel"] = "Benachrichtigungstöne abspielen",
-        ["einst_benachr_sub"] = "Höchstgeschwindigkeit, Neuberechnung der Route beim Verlassen.",
+        ["einst_benachr_titel"] = "Abbiege-Töne (Sounds)",
+        ["einst_benachr_sub"] = "Kurzer Ton vor jeder Abbiegung.",
         ["einst_navisprache"] = "Sprache der Navigation",
 
         // ---- Einstellungen: Karte ----
@@ -360,9 +367,16 @@ public static class Texte
         // Common terms / dialog buttons
         ["abbrechen"] = "Cancel",
         ["ok"] = "OK",
+        ["ja"] = "Yes",
+        ["nein"] = "No",
         ["schliessen"] = "Close",
         ["ziel"] = "Destination",
         ["mein_standort"] = "My location",
+
+        // First-launch prompt (once after install): voice announcements + turn sounds
+        ["erst_titel"] = "Welcome to WalkHop",
+        ["erst_sprache_frage"] = "Enable voice announcements during navigation?",
+        ["erst_toene_frage"] = "Play turn sounds?",
 
         // Group position (share live location)
         ["gruppe_titel"] = "Group",
@@ -433,8 +447,8 @@ public static class Texte
         ["einst_sec_tonsprache"] = "SOUND & VOICE",
         ["einst_sprachnavi"] = "Voice navigation",
         ["einst_lautstaerke"] = "Instruction volume",
-        ["einst_benachr_titel"] = "Play notification sounds",
-        ["einst_benachr_sub"] = "Speed limit, route recalculation when leaving the route.",
+        ["einst_benachr_titel"] = "Turn sounds",
+        ["einst_benachr_sub"] = "Short sound before each turn.",
         ["einst_navisprache"] = "Navigation language",
 
         // Settings: Map
