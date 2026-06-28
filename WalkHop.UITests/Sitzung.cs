@@ -15,7 +15,7 @@ public class Sitzung
 
     private static string ApkPfad =>
         Environment.GetEnvironmentVariable("SPIN_APK")
-        ?? @"A:\spin1more\App\WalkHop\bin\Release\net10.0-android\com.companyname.spinnaviapp-Signed.apk";
+        ?? @"A:\WalkHop\App\WalkHop\bin\Debug\net10.0-android\com.companyname.spinnaviapp-Signed.apk";
 
     [OneTimeSetUp]
     public void Start()
