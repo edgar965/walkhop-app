@@ -37,8 +37,8 @@
 
 		<!-- Versions – App-Anzeigeversion immer = Django-Server-VERSION (settings.py).
 		     ApplicationVersion = Build-Nummer (CFBundleVersion/Android versionCode), je Build erhöhen. -->
-		<ApplicationDisplayVersion>0.3.32</ApplicationDisplayVersion>
-		<ApplicationVersion>4</ApplicationVersion>
+		<ApplicationDisplayVersion>0.3.33</ApplicationDisplayVersion>
+		<ApplicationVersion>5</ApplicationVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
 		<WindowsPackageType>None</WindowsPackageType>
