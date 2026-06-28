@@ -83,6 +83,7 @@ public partial class MainPage : ContentPage
     private List<(double lat, double lon)>? _navPunkte;
     private double[]? _navKum;
     private List<Manoever> _navManoever = new();
+    private string _letztNotifText = "";   // letzter an die Uhr gespiegelte Abbiege-Hinweis
     private double _navGesamt;
     private int _letztGesprochen = -1, _vorabGesprochen = -1, _navIdx;
     private bool _zielAngesagt;
@@ -150,6 +151,9 @@ public partial class MainPage : ContentPage
         // ignoriert. Bewusstes Drehen funktioniert weiter.
         MapCtrl.UnSnapRotationDegrees = 30;
         MapCtrl.ReSnapRotationDegrees = 8;
+        // Mapsuis 200-ms-„Warte-auf-Doppeltipp" abschalten: Tipps (Kontextmenü/Detail) reagieren
+        // sofort statt verzögert; Zoom per Pinch (GPU-flüssig). Doppeltipp-Zoom entfällt (es gibt +/- Knöpfe).
+        MapCtrl.UseDoubleTap = false;
         // Während der Finger die Karte berührt: keine programmatische Kamera-Bewegung (Folgen/Drehen),
         // sonst kämpft die Live-Schleife gegen die Pinch-Geste → Zittern (maps.me pausiert das ebenso).
         MapCtrl.TouchStarted += (s, e) => { _userBeruehrt = true; _letzteBeruehrungMs = Environment.TickCount64; };
@@ -627,6 +631,8 @@ public partial class MainPage : ContentPage
     {
         if (_navPunkte == null || _navPunkte.Count < 2) return;
         _navAktiv = true;
+        _letztNotifText = "";
+        _ = NaviNotif.BerechtigungAsync();   // Notification-Berechtigung fürs Watch-Spiegeln
         NaviZustandAnzeigen();
         SheetSetzen(false);   // Schublade auf kompakten Peek einklappen
         try { DeviceDisplay.Current.KeepScreenOn = Einst.BildschirmWach; } catch (Exception ex) { Debug.WriteLine(ex); }
@@ -699,6 +705,10 @@ public partial class MainPage : ContentPage
             AbbiegePfeil.Rotation = PfeilWinkel(_navManoever[next].Typ);
             AbbiegePfeil.IsVisible = true;
             AnweisungBox.IsVisible = true;   // Pfeil + Distanz einblenden
+            // Watch-Spiegelung: Abbiege-Hinweis als (in-place) Notification → erscheint auf
+            // gekoppelten Uhren (Apple Watch / Wear OS / Bluetooth-Uhren), ohne eigene Watch-App.
+            string notifTxt = $"{FmtKm(distNext)}: {Saubere(_navManoever[next].Anweisung)}";
+            if (notifTxt != _letztNotifText) { _letztNotifText = notifTxt; NaviNotif.Zeige("Navigation", notifTxt); }
             // Zweistufige Ansage: Vorab „In N Metern …" (45–160 m), dann am Manöver die Anweisung.
             if (Einst.Ton)
             {
@@ -875,6 +885,7 @@ public partial class MainPage : ContentPage
         _navAktiv = false;
         _folgen = false;
         _letztGesprochen = -1; _zielAngesagt = false;
+        _letztNotifText = ""; NaviNotif.Aus();   // Watch-Hinweis entfernen
         RichtungAus();               // lila Richtungspfeil entfernen (Vorschau zeigt keinen)
         AnweisungBox.IsVisible = false;
         NaviZustandAnzeigen();        // Start sichtbar, Stop/Peek-Stop weg, Vorschau an
@@ -888,6 +899,7 @@ public partial class MainPage : ContentPage
     {
         _navPunkte = null; _navKum = null; _navManoever = new();
         _letztGesprochen = -1; _zielAngesagt = false; _startUeberschreibung = null;
+        _letztNotifText = ""; NaviNotif.Aus();   // Watch-Hinweis entfernen
         _alternativen.Clear(); AltChip.IsVisible = false;
         _navAktiv = false;
         _routeLayer.Features = new List<IFeature>();

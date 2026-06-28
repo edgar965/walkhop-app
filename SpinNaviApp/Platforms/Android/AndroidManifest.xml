@@ -8,4 +8,6 @@
 	<!-- GPS für die native Navigation (Geolocation / MyLocationLayer) -->
 	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 	<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+	<!-- Abbiege-Hinweise als Notification (spiegeln auf gekoppelte Uhren), Android 13+ -->
+	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

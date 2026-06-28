@@ -102,6 +102,8 @@ public partial class UebersichtPage : ContentPage
         // maps.me-Stil: beim 2-Finger-Zoom nicht mitdrehen (erst ab bewusster 30°-Drehung).
         UeMap.UnSnapRotationDegrees = 30;
         UeMap.ReSnapRotationDegrees = 8;
+        // Mapsuis 200-ms-„Warte-auf-Doppeltipp" abschalten → Tipps reagieren sofort; Zoom per Pinch.
+        UeMap.UseDoubleTap = false;
         // Solange der Finger die Karte berührt, KEINE programmatische Kamera-Bewegung (Folgen-
         // Zentrieren/Kompass-Drehen). Sonst kämpft die Live-Schleife gegen die Pinch-Geste → Zittern.
         UeMap.TouchStarted += (s, e) => { _userBeruehrt = true; _letzteBeruehrungMs = Environment.TickCount64; };
