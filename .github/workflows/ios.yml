@@ -1,19 +1,25 @@
 name: iOS Build & TestFlight
 
-# Baut die WalkHop-MAUI-App auf macOS und lädt sie zu TestFlight hoch.
-# Nach dem ERPROBTEN Muster aus edgar965/CleanOrgaCleaner (gleiches Apple-Team E7F22WZ26P).
+# Baut die WalkHop-MAUI-App auf macOS, signiert sie und laedt sie zu TestFlight hoch –
+# nach dem ERPROBTEN CleanOrga-Muster (gleiches Apple-Team E7F22WZ26P).
 #
-# - Push auf main: nur BAUEN (iOS-Simulator, unsigniert) → Pipeline-/Kompilier-Check ohne Secrets.
-# - Manuell (Run workflow): SIGNIEREN + zu TestFlight HOCHLADEN. Braucht diese Repo-Secrets:
-#     APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY (.p8)
-#     IOS_DISTRIBUTION_CERTIFICATE_BASE64, IOS_DISTRIBUTION_CERTIFICATE_PASSWORD (.p12)
-#     IOS_PROVISIONING_PROFILE_BASE64  (App-Store-Profil für die Bundle-ID „walkhop")
-#   und die Repo-Variable IOS_SIGNING_IDENTITY (z. B. "Apple Distribution: Edgar Maass (E7F22WZ26P)").
+# AUSLOESER: NUR manuell ("Run workflow" / workflow_dispatch). DU entscheidest, WANN ein
+# Build hochgeladen wird – ein git push laedt NICHTS hoch. Ab dem Klick laeuft ALLES
+# automatisch, ohne Handarbeit:
+#   bauen -> signieren -> .ipa -> Upload zu TestFlight.
+# - Build-Nummer (CFBundleVersion) = Lauf-Nummer (automatisch, kein Handbump; jeder Upload
+#   bekommt so eine eindeutige, steigende Nummer, die Apple akzeptiert).
+# - Anzeige-Version (CFBundleShortVersionString) = die LOKALE ApplicationDisplayVersion
+#   aus der .csproj (z. B. 0.3.32) – also genau wie lokal.
+# - Interne TestFlight-Tester ("Testintern") erhalten den Build nach der Verarbeitung
+#   automatisch (Export-Compliance ist in der Info.plist gesetzt -> kein manueller Schritt).
+#
+# Noetige Repo-Secrets: APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID,
+#   APP_STORE_CONNECT_PRIVATE_KEY (.p8), IOS_DISTRIBUTION_CERTIFICATE_BASE64,
+#   IOS_DISTRIBUTION_CERTIFICATE_PASSWORD (.p12), IOS_PROVISIONING_PROFILE_BASE64.
+#   Repo-Variablen: IOS_BUNDLE_ID, IOS_SIGNING_IDENTITY ("Apple Distribution: Edgar Maass (E7F22WZ26P)").
 
 on:
-  push:
-    branches: [main]
-    paths: ['SpinNaviApp/**', '.github/workflows/ios.yml']
   workflow_dispatch:
 
 concurrency:
@@ -43,14 +49,7 @@ jobs:
       - name: MAUI-Workloads installieren
         run: dotnet workload install maui
 
-      # ---------- Push: nur Validierung (Simulator, ohne Signierung) ----------
-      - name: Build (Simulator, ohne Signierung)
-        if: ${{ github.event_name != 'workflow_dispatch' }}
-        run: dotnet build "$PROJECT" -c Release -f net10.0-ios -p:RuntimeIdentifier=iossimulator-arm64
-
-      # ---------- Manuell: signieren + zu TestFlight hochladen ----------
       - name: Signing-Zertifikat in Keychain importieren
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
@@ -70,7 +69,6 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN" >> $GITHUB_ENV
 
       - name: Provisioning-Profil installieren
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           PP_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
         run: |
@@ -82,7 +80,6 @@ jobs:
           echo "Profil installiert, UUID: $UUID"
 
       - name: Build & Archive (signiert) → .ipa
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           dotnet publish "$PROJECT" \
             -f net10.0-ios -c Release \
@@ -94,7 +91,6 @@ jobs:
             -p:CodesignKey="${{ vars.IOS_SIGNING_IDENTITY }}"
 
       - name: IPA als Artefakt sichern
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v4
         with:
           name: walkhop-ios
@@ -102,7 +98,6 @@ jobs:
           if-no-files-found: error
 
       - name: Zu TestFlight hochladen (App Store Connect API)
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
