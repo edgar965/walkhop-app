@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:WalkHop"
+             x:Class="WalkHop.TestPage"
+             x:Name="Page"
+             Title="Selbsttest">
+
+    <Grid RowDefinitions="Auto,Auto,170,*" Padding="10" RowSpacing="8">
+
+        <!-- Tabs (Gruppen: Navigation / OSM / Tour) – werden im Code befüllt -->
+        <ScrollView Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
+            <HorizontalStackLayout x:Name="TabsHost" Spacing="6" />
+        </ScrollView>
+
+        <!-- Status + „Alle ausführen" -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <Label x:Name="StatusLabel" Grid.Column="0" VerticalOptions="Center"
+                   FontAttributes="Bold" Text="Lade Tests …" />
+            <Button x:Name="AlleBtn" Grid.Column="1" Text="Alle ausführen" Clicked="OnRunAll" />
+        </Grid>
+
+        <!-- Test-Bühne -->
+        <Border Grid.Row="2" Stroke="#ccc" StrokeThickness="1">
+            <WebView x:Name="TestWeb" />
+        </Border>
+
+        <!-- Liste der Einzeltests der aktiven Gruppe -->
+        <CollectionView Grid.Row="3" x:Name="Liste">
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="local:TestRow">
+                    <Grid Padding="4,6" ColumnDefinitions="26,*,Auto" ColumnSpacing="8">
+                        <Label Grid.Column="0" Text="{Binding Symbol}" TextColor="{Binding Farbe}"
+                               FontAttributes="Bold" FontSize="18" VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                            <Label Text="{Binding Name}" />
+                            <Label Text="{Binding Sub}" FontSize="11" TextColor="#777" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="2" Text="Run" FontSize="12" Padding="12,0" HeightRequest="34"
+                                VerticalOptions="Center"
+                                Command="{Binding Source={x:Reference Page}, Path=RunOneCommand}"
+                                CommandParameter="{Binding .}" />
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+
+</ContentPage>

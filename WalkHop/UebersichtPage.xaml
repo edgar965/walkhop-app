@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:mapsui="clr-namespace:Mapsui.UI.Maui;assembly=Mapsui.UI.Maui"
+             xmlns:local="clr-namespace:WalkHop"
+             xmlns:loc="clr-namespace:WalkHop"
+             x:Class="WalkHop.UebersichtPage"
+             Shell.NavBarIsVisible="True"
+             Title="{loc:Translate nav_start}">
+
+    <!-- Vollflächige Karte; alle Bedienelemente liegen darüber (rechte Leiste + Aufklapp-Fenster). -->
+    <Grid>
+        <mapsui:MapControl x:Name="UeMap" />
+
+        <!-- Rechte Karten-Steuerung: GENAU die 4 Django-Icons (Ebenen, Kamera, Locate, Vollbild) -->
+        <VerticalStackLayout x:Name="OsmControls" HorizontalOptions="End" VerticalOptions="Start" Spacing="10" Margin="0,12,9,0">
+            <!-- Ebenen / Kartenstil -->
+            <Border AutomationId="osm_layer" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                    WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22">
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnLayer" /></Border.GestureRecognizers>
+                <Grid WidthRequest="24" HeightRequest="24" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Path Fill="#0f172a" Data="M12 3 L21 8 L12 13 L3 8 Z" />
+                    <Path Stroke="#0f172a" StrokeThickness="1.7" StrokeLineJoin="Round" StrokeLineCap="Round"
+                          Data="M3.4 11.5 L12 16.4 L20.6 11.5 M3.4 15.3 L12 20.2 L20.6 15.3" />
+                </Grid>
+            </Border>
+            <!-- Kamera / Fotos -->
+            <Border x:Name="FotoBorder" AutomationId="osm_foto" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                    WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22">
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFoto" /></Border.GestureRecognizers>
+                <AbsoluteLayout WidthRequest="24" HeightRequest="24" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Path x:Name="FotoIcon" AbsoluteLayout.LayoutBounds="0,0,24,24" Stroke="#0f172a" StrokeThickness="2"
+                          StrokeLineJoin="Round" StrokeLineCap="Round" Data="M3 8.5h3.2l1.5-2.2h6.6l1.5 2.2H21V19H3z" />
+                    <Ellipse x:Name="FotoLinse" AbsoluteLayout.LayoutBounds="8.7,9.7,6.6,6.6" Stroke="#0f172a" StrokeThickness="2" />
+                </AbsoluteLayout>
+            </Border>
+            <!-- Locate / Kompass: rot+Fadenkreuz ⇄ weiß+„N" (Norden), wie Navi-Seite -->
+            <Border x:Name="OrtBorder" AutomationId="osm_locate" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="#e2231a"
+                    WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22">
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnZentrieren" /></Border.GestureRecognizers>
+                <Grid HorizontalOptions="Center" VerticalOptions="Center">
+                    <!-- Exakte Kopie der Django-Icons (karte_controls.js ICON_ORT/ICON_NORD) als SVG-Asset, wie Navi-Seite -->
+                    <Image x:Name="OsmLocateIcon" Source="komp_locate.png" WidthRequest="24" HeightRequest="24"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Image x:Name="OsmNordIcon" IsVisible="False" Source="komp_nord.png" WidthRequest="24" HeightRequest="24"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Grid>
+            </Border>
+            <!-- Vollbild (Doppelpfeile): aktiv = rot -->
+            <Border x:Name="VollBorder" AutomationId="osm_vollbild" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                    WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22">
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnVollbild" /></Border.GestureRecognizers>
+                <Path x:Name="VollIcon" WidthRequest="24" HeightRequest="24" HorizontalOptions="Center" VerticalOptions="Center"
+                      Stroke="#0f172a" StrokeThickness="2.2" StrokeLineJoin="Round" StrokeLineCap="Round"
+                      Data="M14 4 H20 V10 M20 4 L13 11 M10 20 H4 V14 M4 20 L11 13" />
+                </Border>
+            <!-- Gruppe: Live-Position mit der Gruppe teilen + Mitglieder als Marker (erstellen/teilen/beitreten) -->
+            <Border x:Name="GruppeBorder" AutomationId="osm_gruppe" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                    WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22">
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnGruppe" /></Border.GestureRecognizers>
+                <Grid HorizontalOptions="Center" VerticalOptions="Center">
+                    <Label x:Name="GruppeIcon" Text="👥" FontSize="20" HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Border x:Name="GruppeBadge" IsVisible="False" BackgroundColor="#16a34a" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 9" WidthRequest="18" HeightRequest="18"
+                            HorizontalOptions="End" VerticalOptions="Start" TranslationX="7" TranslationY="-7">
+                        <Label x:Name="GruppeBadgeText" Text="" FontSize="10" FontAttributes="Bold" TextColor="White"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                </Grid>
+            </Border>
+        </VerticalStackLayout>
+
+        <!-- Status -->
+        <Border x:Name="UeStatusPille" IsVisible="False" VerticalOptions="Start" HorizontalOptions="Center"
+                Margin="0,10,0,0" BackgroundColor="White" Padding="12,5" StrokeThickness="0" StrokeShape="RoundRectangle 999">
+            <Label x:Name="UeStatus" FontSize="12" FontAttributes="Bold" TextColor="#475569" />
+        </Border>
+
+        <!-- „Berechnete Routen löschen": gut sichtbarer roter Knopf oben links – erscheint nur, wenn
+             selbst errechnete Rundwanderungen auf der Karte liegen, und entfernt sie wieder. -->
+        <Button x:Name="GenLoeschenBtn" AutomationId="osm_gen_loeschen" IsVisible="False"
+                Text="{loc:Translate ue_gen_loeschen}" Clicked="OnGenLoeschen"
+                VerticalOptions="Start" HorizontalOptions="Start" Margin="9,12,0,0"
+                BackgroundColor="#e2231a" TextColor="White" CornerRadius="18" Padding="14,6"
+                FontSize="13" FontAttributes="Bold">
+            <Button.Shadow><Shadow Brush="Black" Opacity="0.2" Radius="8" Offset="0,3" /></Button.Shadow>
+        </Button>
+
+        <!-- Aufklapp-Fenster (maps.me-Stil): Suche + Umkreis + Radius + Filter-Chips -->
+        <Border x:Name="StartSheet" HorizontalOptions="Fill" VerticalOptions="End"
+                BackgroundColor="White" StrokeThickness="0" StrokeShape="RoundRectangle 20,20,0,0">
+            <Border.Shadow><Shadow Brush="Black" Opacity="0.2" Radius="16" Offset="0,-3" /></Border.Shadow>
+            <Grid RowDefinitions="Auto,Auto,*">
+                <!-- Griff: tippen klappt zu/auf, wischen zieht -->
+                <Grid x:Name="StartGriff" AutomationId="osm_griff" Grid.Row="0" Padding="0,10,0,8">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnStartSheet" />
+                        <PanGestureRecognizer PanUpdated="OnStartSheetPan" />
+                    </Grid.GestureRecognizers>
+                    <BoxView WidthRequest="44" HeightRequest="5" CornerRadius="3" Color="#cbd5e1" HorizontalOptions="Center" />
+                </Grid>
+
+                <!-- Peek: Namenssuche. Farben explizit WEISS (iOS rendert die SearchBar sonst dunkel/schwarz,
+                     v. a. im Dunkelmodus); das innere iOS-Suchfeld wird zusätzlich per Handler hell gesetzt. -->
+                <SearchBar Grid.Row="1" x:Name="Suchfeld" AutomationId="osm_suchfeld" Placeholder="{loc:Translate ue_such_placeholder}"
+                           TextChanged="OnSuche" Margin="12,0,12,8"
+                           BackgroundColor="White" TextColor="#0f172a" PlaceholderColor="#94a3b8" CancelButtonColor="#0d9488" />
+
+                <!-- Kompakter Suchmodus (Einst.KompakteSuche): statt des dauerhaften Suchfelds nur ein
+                     Such-Symbol; ein Tipp blendet das Suchfeld ein. Sichtbarkeit: KompakteSucheAnwenden(). -->
+                <Border Grid.Row="1" x:Name="KompaktSuchBtn" AutomationId="osm_suche_kompakt" IsVisible="False"
+                        HorizontalOptions="Start" Margin="12,0,12,8" Padding="14,9"
+                        BackgroundColor="#f1f5f9" StrokeThickness="0" StrokeShape="RoundRectangle 12">
+                    <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnKompaktSuche" /></Border.GestureRecognizers>
+                    <HorizontalStackLayout Spacing="8">
+                        <Label Text="🔍" FontSize="16" VerticalOptions="Center" />
+                        <Label Text="{loc:Translate ue_suche_kompakt}" FontSize="14" TextColor="#64748b" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </Border>
+
+                <!-- Aufgeklappt: Umkreis-Suche, Radius, Filter-Chips -->
+                <ScrollView Grid.Row="2">
+                    <VerticalStackLayout Padding="14,0,14,16" Spacing="12">
+
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <Button Grid.Column="0" AutomationId="osm_standort" Text="{loc:Translate ue_standort_btn}" Clicked="OnStandort"
+                                    Padding="10,0" HeightRequest="44" BackgroundColor="#0d9488" TextColor="White" CornerRadius="10" FontSize="13" />
+                            <Entry Grid.Column="1" x:Name="OrtEntry" Placeholder="{loc:Translate ue_ort_placeholder}" Completed="OnOrtSuche"
+                                   ReturnType="Search" VerticalOptions="Center" />
+                            <Button Grid.Column="2" AutomationId="osm_ortsuche" Text="🔍" Clicked="OnOrtSuche"
+                                    WidthRequest="44" HeightRequest="44" Padding="0" BackgroundColor="#0c4a6e" TextColor="White" CornerRadius="10" />
+                        </Grid>
+
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                            <HorizontalStackLayout Grid.Column="0" Spacing="2">
+                                <CheckBox x:Name="UmkreisCheck" AutomationId="osm_umkreis" CheckedChanged="OnUmkreisCheck" Color="#0d9488" />
+                                <Label Text="{loc:Translate ue_umkreis}" VerticalOptions="Center" TextColor="#0f172a" />
+                            </HorizontalStackLayout>
+                            <HorizontalStackLayout Grid.Column="1" Spacing="2" HorizontalOptions="End">
+                                <CheckBox x:Name="BahnhofCheck" AutomationId="osm_bahnhof" CheckedChanged="OnBahnhof" Color="#0d9488" />
+                                <Label Text="{loc:Translate ue_bahnhof}" VerticalOptions="Center" TextColor="#0f172a" />
+                            </HorizontalStackLayout>
+                        </Grid>
+
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                            <Label Text="{loc:Translate ue_radius}" VerticalOptions="Center" TextColor="#475569" FontSize="13" />
+                            <HorizontalStackLayout x:Name="RadiusChips" Spacing="6" />
+                            <Label x:Name="MittelpunktLabel" Text="" FontSize="12" TextColor="#94a3b8" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+
+                        <!-- Filter-Chips (umbrechend) -->
+                        <FlexLayout x:Name="ChipLeiste" Wrap="Wrap" Direction="Row" AlignItems="Center" />
+
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Grid>
+        </Border>
+
+        <!-- Listen-/Kachelansicht (umschaltbar) -->
+        <CollectionView x:Name="ListePanel" AutomationId="osm_liste_panel" IsVisible="False" BackgroundColor="#f1f5f9"
+                        SelectionMode="Single" SelectionChanged="OnListeGewaehlt">
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="local:TourInfo">
+                    <Border Margin="10,5" StrokeThickness="0" BackgroundColor="White"
+                            Padding="14,12" StrokeShape="RoundRectangle 12">
+                        <VerticalStackLayout Spacing="3">
+                            <Label Text="{Binding Name}" FontSize="15" FontAttributes="Bold" TextColor="#0f172a" />
+                            <Label FontSize="12" TextColor="#64748b">
+                                <Label.FormattedText>
+                                    <FormattedString>
+                                        <Span Text="{Binding Kategorie}" />
+                                        <Span Text="  ·  " />
+                                        <Span Text="{Binding Km, StringFormat='{0:0.0} km'}" />
+                                        <Span Text="  ·  " />
+                                        <Span Text="{Binding DauerMin, StringFormat='{0} min'}" />
+                                    </FormattedString>
+                                </Label.FormattedText>
+                            </Label>
+                        </VerticalStackLayout>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <!-- Tour-Detail-Dialog -->
+        <Grid x:Name="Dialog" AutomationId="osm_dialog" IsVisible="False">
+            <BoxView BackgroundColor="#88000000">
+                <BoxView.GestureRecognizers><TapGestureRecognizer Tapped="OnDialogZu" /></BoxView.GestureRecognizers>
+            </BoxView>
+            <Border VerticalOptions="Center" HorizontalOptions="Center" Margin="20" BackgroundColor="White"
+                    StrokeThickness="0" StrokeShape="RoundRectangle 16" MaximumWidthRequest="460">
+              <Grid>
+                <ScrollView MaximumHeightRequest="560">
+                    <VerticalStackLayout Padding="0,0,0,16" Spacing="0">
+                        <!-- Mini-Karte oben mit der GPS-Route (wie im Web-Detail-Dialog); in DialogZeigen befüllt -->
+                        <mapsui:MapControl x:Name="DlgMap" HeightRequest="180" IsVisible="False" />
+                        <Image x:Name="DlgBild" Aspect="AspectFill" HeightRequest="180" IsVisible="False" />
+                        <VerticalStackLayout Padding="18,14" Spacing="8">
+                            <Label x:Name="DlgKat" FontSize="12" FontAttributes="Bold" TextColor="#0d9488" />
+                            <Label x:Name="DlgName" FontSize="19" FontAttributes="Bold" TextColor="#0f172a" />
+                            <Label x:Name="DlgBadges" FontSize="13" TextColor="#475569" />
+                            <Label x:Name="DlgBeschr" FontSize="14" TextColor="#334155" />
+                            <Button AutomationId="osm_dialog_navi" Text="{loc:Translate ue_dlg_navi}" Clicked="OnDialogNavigieren"
+                                    BackgroundColor="#0d9488" TextColor="White" CornerRadius="12" Margin="0,6,0,0" />
+                            <!-- Tour offline speichern: Kacheln entlang der Route + verkleinerte Fotos der Tour -->
+                            <Button x:Name="DlgOfflineBtn" AutomationId="osm_dialog_offline" Text="{loc:Translate dlg_offline_btn}" Clicked="OnDialogOffline"
+                                    BackgroundColor="#0c4a6e" TextColor="White" CornerRadius="12" />
+                            <!-- GPX/Termine nur für echte Server-Touren; bei selbst errechneten Rundwanderungen ausgeblendet. -->
+                            <Grid x:Name="DlgExternGrid" ColumnDefinitions="*,*" ColumnSpacing="8">
+                                <Button Grid.Column="0" AutomationId="osm_dialog_gpx" Text="{loc:Translate ue_dlg_gpx}" Clicked="OnDialogGpx"
+                                        BackgroundColor="#334155" TextColor="White" CornerRadius="12" />
+                                <Button Grid.Column="1" AutomationId="osm_dialog_details" Text="{loc:Translate ue_dlg_termine}" Clicked="OnDialogTermine"
+                                        BackgroundColor="#334155" TextColor="White" CornerRadius="12" />
+                            </Grid>
+                            <Label x:Name="DlgPoiTitel" Text="{loc:Translate ue_dlg_poi_titel}" FontSize="14"
+                                   FontAttributes="Bold" TextColor="#0f172a" IsVisible="False" Margin="0,6,0,0" />
+                            <!-- Kein unterer „Schließen"-Knopf mehr: oben rechts gibt es das X (osm_dialog_x),
+                                 zusätzlich schließt ein Tipp auf den abgedunkelten Hintergrund (beide → OnDialogZu).
+                                 So bleibt der Dialog so niedrig wie sein Inhalt (kein großer weißer Bereich). -->
+                            <VerticalStackLayout x:Name="DlgPois" Spacing="6" />
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </ScrollView>
+                <!-- Schließen-X oben rechts über dem Dialog (dunkler, halbtransparenter Kreis – sichtbar
+                     über Mini-Karte/Titelbild wie auch über weißem Hintergrund). -->
+                <Border AutomationId="osm_dialog_x" HorizontalOptions="End" VerticalOptions="Start" Margin="0,10,10,0"
+                        WidthRequest="44" HeightRequest="44" BackgroundColor="#cc0f172a" StrokeThickness="0"
+                        StrokeShape="RoundRectangle 22">
+                    <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnDialogZu" /></Border.GestureRecognizers>
+                    <Label Text="✕" TextColor="White" FontSize="16" FontAttributes="Bold"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+              </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</ContentPage>

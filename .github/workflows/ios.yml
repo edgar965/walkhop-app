@@ -28,7 +28,7 @@ concurrency:
 
 env:
   DOTNET_VERSION: '10.0.x'
-  PROJECT: SpinNaviApp/SpinNaviApp.csproj
+  PROJECT: WalkHop/WalkHop.csproj
 
 jobs:
   build:

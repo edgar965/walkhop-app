@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:WalkHop"
+             xmlns:loc="clr-namespace:WalkHop"
+             x:Class="WalkHop.StartPage"
+             Title="{loc:Translate nav_start}"
+             BackgroundColor="#f1f5f9">
+
+    <Grid RowDefinitions="Auto,Auto,*">
+
+        <!-- Kopf -->
+        <VerticalStackLayout Grid.Row="0" BackgroundColor="#003153" Padding="20,24" Spacing="4">
+            <Label Text="{x:Static local:AppConfig.Marke}" FontSize="28" FontAttributes="Bold" TextColor="White" />
+            <Label Text="{loc:Translate sp_untertitel}" FontSize="14" TextColor="#9fc3d8" />
+        </VerticalStackLayout>
+
+        <!-- Schnellzugriff -->
+        <Grid Grid.Row="1" Padding="16,14" ColumnDefinitions="*,*" ColumnSpacing="12">
+            <Button Grid.Column="0" AutomationId="start_navigation" Text="{loc:Translate sp_navigation}" Clicked="OnNavigation"
+                    BackgroundColor="#0d9488" TextColor="White" HeightRequest="52" CornerRadius="12" />
+            <Button Grid.Column="1" AutomationId="start_uebersicht" Text="{loc:Translate sp_uebersicht}" Clicked="OnUebersicht"
+                    BackgroundColor="#334155" TextColor="White" HeightRequest="52" CornerRadius="12" />
+        </Grid>
+
+        <!-- Touren -->
+        <Grid Grid.Row="2" RowDefinitions="Auto,Auto,*" Padding="16,0,16,0">
+            <Label Grid.Row="0" Text="{loc:Translate sp_touren}" FontSize="18" FontAttributes="Bold" TextColor="#0f172a" Margin="2,4,0,8" />
+            <SearchBar Grid.Row="1" x:Name="TourSuche" Placeholder="{loc:Translate sp_tour_suche}"
+                       TextChanged="OnTourSuche" BackgroundColor="White" />
+            <CollectionView Grid.Row="2" x:Name="TourListe" SelectionMode="Single"
+                            SelectionChanged="OnTourGewaehlt" Margin="0,8,0,0">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="local:TourInfo">
+                        <Border Margin="0,0,0,8" StrokeThickness="0" BackgroundColor="White"
+                                Padding="14,12" StrokeShape="RoundRectangle 12">
+                            <VerticalStackLayout Spacing="3">
+                                <Label Text="{Binding Name}" FontSize="15" FontAttributes="Bold" TextColor="#0f172a" />
+                                <Label FontSize="12" TextColor="#64748b">
+                                    <Label.FormattedText>
+                                        <FormattedString>
+                                            <Span Text="{Binding Kategorie}" />
+                                            <Span Text="  ·  " />
+                                            <Span Text="{Binding Km, StringFormat='{0:0.0} km'}" />
+                                            <Span Text="  ·  " />
+                                            <Span Text="{Binding DauerMin, StringFormat='{0} min'}" />
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                </Label>
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+                <CollectionView.EmptyView>
+                    <Label x:Name="LeerLabel" Text="{loc:Translate sp_leer_laden}" HorizontalOptions="Center"
+                           Margin="0,30" TextColor="#64748b" />
+                </CollectionView.EmptyView>
+            </CollectionView>
+        </Grid>
+    </Grid>
+</ContentPage>
