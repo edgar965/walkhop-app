@@ -17,8 +17,8 @@ public static class AppConfig
     /// ändern: WalkHop-App = "WalkHop", Spin1More-App = "Spin1More".</summary>
     public const string Marke = "WalkHop";
 
-    /// <summary>Untertitel/Region unter dem Markennamen im Flyout-Kopf.</summary>
-    public const string MarkeUntertitel = "Berlin & Brandenburg";
+    /// <summary>Untertitel unter dem Markennamen im Flyout-Kopf (Hamburger-Menü).</summary>
+    public const string MarkeUntertitel = "Wandern und Sehenswürdigkeiten";
 
 #if DEBUG
     // ---- Nur Debug: Selbsttest-WebView (TestPage) --------------------------

@@ -378,6 +378,7 @@ public partial class MainPage : ContentPage
         _alternativen.Clear();
         NavStart(punkte, man, $"{tour.Name} · {FmtKmVon(tour.Km)}", ank);
         Status(null);
+        NaviAktivieren();   // aus dem Tour-Dialog gestartet → sofort aktiv (keine Vorschau mit „Start")
     }
 
     protected override void OnDisappearing()
@@ -697,7 +698,12 @@ public partial class MainPage : ContentPage
     }
 
     // Start-Knopf: Vorschau → aktive Navigation.
-    private void OnStartNavigation(object? sender, EventArgs e)
+    private void OnStartNavigation(object? sender, EventArgs e) => NaviAktivieren();
+
+    // Aktive Navigation einschalten (Start-Knopf der Vorschau ODER direkt beim Start aus dem
+    // Tour-Detail-Dialog – dort soll ja keine Vorschau mit „Start" mehr kommen, die Navigation
+    // läuft sofort und zeigt den Lauf-Kopf mit Stop).
+    private void NaviAktivieren()
     {
         if (_navPunkte == null || _navPunkte.Count < 2) return;
         _navAktiv = true;
@@ -992,7 +998,13 @@ public partial class MainPage : ContentPage
     // „Stop" beendet die Turn-by-Turn-Navigation, kehrt aber zur Routen-VORSCHAU zurück
     // (maps.me-Stil): Panel + Route bleiben sichtbar, der „Start"-Knopf erscheint wieder,
     // damit man dieselbe Route neu starten oder ein neues Ziel wählen kann.
-    private void OnStop(object? sender, EventArgs e) => ZurueckZurVorschau();
+    // „Stop" beendet die Navigation und kehrt zur START-Seite zurück (nicht in die Vorschau mit „Start").
+    private async void OnStop(object? sender, EventArgs e)
+    {
+        NavigationBeenden();
+        try { await Shell.Current.GoToAsync("//start"); }
+        catch (Exception ex) { Debug.WriteLine(ex); }
+    }
 
     // „Zurück"-Knopf (nur in der Vorschau): zurück zur Start-/Übersichtsseite.
     private async void OnZurueck(object? sender, EventArgs e)

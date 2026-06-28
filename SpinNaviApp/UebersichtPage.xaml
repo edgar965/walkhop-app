@@ -86,9 +86,11 @@
                     <BoxView WidthRequest="44" HeightRequest="5" CornerRadius="3" Color="#cbd5e1" HorizontalOptions="Center" />
                 </Grid>
 
-                <!-- Peek: Namenssuche -->
+                <!-- Peek: Namenssuche. Farben explizit WEISS (iOS rendert die SearchBar sonst dunkel/schwarz,
+                     v. a. im Dunkelmodus); das innere iOS-Suchfeld wird zusätzlich per Handler hell gesetzt. -->
                 <SearchBar Grid.Row="1" x:Name="Suchfeld" AutomationId="osm_suchfeld" Placeholder="{loc:Translate ue_such_placeholder}"
-                           TextChanged="OnSuche" Margin="12,0,12,8" />
+                           TextChanged="OnSuche" Margin="12,0,12,8"
+                           BackgroundColor="White" TextColor="#0f172a" PlaceholderColor="#94a3b8" CancelButtonColor="#0d9488" />
 
                 <!-- Kompakter Suchmodus (Einst.KompakteSuche): statt des dauerhaften Suchfelds nur ein
                      Such-Symbol; ein Tipp blendet das Suchfeld ein. Sichtbarkeit: KompakteSucheAnwenden(). -->

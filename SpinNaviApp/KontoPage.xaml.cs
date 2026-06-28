@@ -26,17 +26,19 @@ public partial class KontoPage : ContentPage
     private void Anzeigen()
     {
         bool angemeldet = !Auth.Anonym && !string.IsNullOrEmpty(Auth.Email);
-        StatusTitel.Text = Auth.Premium
-            ? (Auth.AlleFunktionen ? L.T("konto_premium_alle") : L.T("konto_premium"))
+        // Vollzugriff (Premium ODER Admin) → „Premium"; Admin/Alle-Funktionen → „alle Funktionen".
+        StatusTitel.Text = Auth.Vollzugriff
+            ? (Auth.IstAdmin ? L.T("konto_premium_alle") : L.T("konto_premium"))
             : (angemeldet ? L.T("konto_titel") : L.T("konto_testkonto"));
         StatusZeile.Text = angemeldet ? L.T("konto_status_angemeldet", Auth.Email)
             : L.T("konto_status_anonym");
-        KontingentZeile.Text = Auth.Premium
+        KontingentZeile.Text = Auth.Vollzugriff
             ? L.T("konto_kontingent_unbegrenzt")
             : L.T("konto_kontingent_genutzt", Auth.RoutenHeute, Auth.GratisProTag, Auth.CreditsRouten, Auth.OfflineGekauft);
 
         AuthCard.IsVisible = !angemeldet;
         AbmeldenBtn.IsVisible = angemeldet;
+        KaufenBtn.IsVisible = !Auth.Vollzugriff;   // „Premium freischalten" NUR ohne Vollzugriff
         AuthTitel.Text = Auth.Anonym ? L.T("auth_titel_anlegen") : L.T("auth_titel_anmelden");
     }
 

@@ -38,6 +38,11 @@ public static class Auth
     /// hinterlegte Admin-Konto e@edgarm.de. Steuert u. a. den Selbsttest-Menüpunkt.</summary>
     public static bool IstAdmin => AlleFunktionen
         || string.Equals(Email, "e@edgarm.de", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Voller Funktionsumfang ohne Kauf nötig: zahlendes Premium-Konto ODER Admin/
+    /// Alle-Funktionen. Steuert konsistent, dass „Premium freischalten" NUR ohne Vollzugriff
+    /// erscheint und das Kontingent als „unbegrenzt" gilt. (Admin e@edgarm.de hat Vollzugriff,
+    /// auch wenn der Server kein zahlendes „premium" meldet.)</summary>
+    public static bool Vollzugriff => Premium || IstAdmin;
     /// <summary>Wird ausgelöst, wenn sich der Konto-Status geändert hat (Login/Logout/Refresh).</summary>
     public static event Action? StatusGeaendert;
     public static int RoutenHeute { get => Preferences.Get("k_routen", 0); private set => Preferences.Set("k_routen", value); }

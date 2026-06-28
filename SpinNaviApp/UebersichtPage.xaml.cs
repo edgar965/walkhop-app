@@ -140,6 +140,24 @@ public partial class UebersichtPage : ContentPage
         // Bei Laufzeit-Sprachwechsel die im Code erzeugten Chip-Beschriftungen neu setzen
         // (alle statischen XAML-Texte aktualisieren sich über {loc:Translate} selbst).
         L.Geaendert += () => MainThread.BeginInvokeOnMainThread(ChipsTexteSetzen);
+
+#if IOS
+        // iOS rendert das innere Suchfeld (UISearchTextField) im Dunkelmodus schwarz. Explizit hell
+        // setzen (Minimal-Stil entfernt die dunkle Standard-Chrome), damit es wie auf Android weiß ist.
+        Suchfeld.HandlerChanged += (_, _) =>
+        {
+            if (Suchfeld.Handler?.PlatformView is UIKit.UISearchBar sb)
+            {
+                sb.SearchBarStyle = UIKit.UISearchBarStyle.Minimal;
+                sb.BackgroundColor = UIKit.UIColor.White;
+                if (sb.SearchTextField is { } feld)
+                {
+                    feld.BackgroundColor = UIKit.UIColor.White;
+                    feld.TextColor = UIKit.UIColor.Black;
+                }
+            }
+        };
+#endif
     }
 
     private static double Aufloesung(int zoom) => WELT0 / Math.Pow(2, zoom);
