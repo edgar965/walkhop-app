@@ -653,8 +653,8 @@ public partial class MainPage : ContentPage
         NaviVorschau.IsVisible = !_navAktiv;
         NaviLaufKopf.IsVisible = _navAktiv;
         StartBtn.IsVisible = !_navAktiv;
-        StopBtn.IsVisible = _navAktiv;
-        StopBtnPeek.IsVisible = _navAktiv;   // Stop auch im immer sichtbaren Peek
+        StopBtn.IsVisible = false;           // großer Stop entfällt (war doppelt) – der kompakte im Lauf-Kopf genügt
+        StopBtnPeek.IsVisible = _navAktiv;   // einziger Stop, im immer sichtbaren Peek
         ZurueckBtn.IsVisible = !_navAktiv;   // „Zurück" zur Start-Seite nur in der Vorschau (vor Start / nach Stop)
         AnweisungBox.IsVisible = _navAktiv;
         TourAktionen.IsVisible = _istTour;   // Tour-Aktionen nur bei aktiver Tour (im Navi-Panel)

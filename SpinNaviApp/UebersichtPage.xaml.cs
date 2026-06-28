@@ -583,7 +583,7 @@ public partial class UebersichtPage : ContentPage
 
     // Eine Sehenswürdigkeit-Zeile: Foto-Thumbnail (44×44, abgerundet) links neben Name + Distanz,
     // wie im Web-Detail-Dialog (.tdlg-poi). Bild-URL kommt aus details.json (relativ → ApiBase davor).
-    private static View PoiZeile(TourPoi p)
+    private View PoiZeile(TourPoi p)
     {
         var grid = new Grid
         {
@@ -633,7 +633,44 @@ public partial class UebersichtPage : ContentPage
 
         grid.Children.Add(rahmen);
         grid.Children.Add(texte);
+        // Tipp auf eine Sehenswürdigkeit mit Foto → das Bild groß in einem Popup zeigen.
+        if (!string.IsNullOrEmpty(p.Bild))
+        {
+            var bildUrl = p.Bild.StartsWith("http") ? p.Bild : AppConfig.ApiBase + p.Bild;
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += (s, e) => _ = BildBetrachten(bildUrl, p.Name);
+            grid.GestureRecognizers.Add(tap);
+        }
         return grid;
+    }
+
+    // Zeigt ein Bild (Sehenswürdigkeit) groß in einem eigenen Modal-Popup.
+    private async Task BildBetrachten(string url, string titel)
+    {
+        var bild = new Image { Aspect = Aspect.AspectFit, VerticalOptions = LayoutOptions.Fill, HorizontalOptions = LayoutOptions.Fill };
+        try { bild.Source = ImageSource.FromUri(new Uri(url)); } catch (Exception ex) { Debug.WriteLine(ex); }
+        var titelLabel = new Label
+        {
+            Text = titel, TextColor = Microsoft.Maui.Graphics.Colors.White, FontSize = 14,
+            Padding = new Thickness(14, 10), BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#003153"),
+            LineBreakMode = LineBreakMode.WordWrap,
+        };
+        var zuBtn = new Button
+        {
+            Text = L.T("schliessen"), BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#334155"),
+            TextColor = Microsoft.Maui.Graphics.Colors.White, CornerRadius = 10, Margin = new Thickness(12),
+        };
+        var grid = new Grid
+        {
+            RowDefinitions = { new RowDefinition { Height = GridLength.Star }, new RowDefinition { Height = GridLength.Auto },
+                               new RowDefinition { Height = GridLength.Auto } },
+            BackgroundColor = Microsoft.Maui.Graphics.Colors.Black,
+        };
+        Grid.SetRow(bild, 0); Grid.SetRow(titelLabel, 1); Grid.SetRow(zuBtn, 2);
+        grid.Children.Add(bild); grid.Children.Add(titelLabel); grid.Children.Add(zuBtn);
+        var seite = new ContentPage { BackgroundColor = Microsoft.Maui.Graphics.Colors.Black, Content = grid };
+        zuBtn.Clicked += async (s, e) => await Navigation.PopModalAsync();
+        await Navigation.PushModalAsync(seite);
     }
 
     // ---- Detail-Dialog: Mini-Karte mit der Tour-Route -------------------------
