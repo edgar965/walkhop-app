@@ -152,6 +152,8 @@
                     StrokeThickness="0" StrokeShape="RoundRectangle 16" MaximumWidthRequest="460">
                 <ScrollView MaximumHeightRequest="560">
                     <VerticalStackLayout Padding="0,0,0,16" Spacing="0">
+                        <!-- Mini-Karte oben mit der GPS-Route (wie im Web-Detail-Dialog); in DialogZeigen befüllt -->
+                        <mapsui:MapControl x:Name="DlgMap" HeightRequest="180" IsVisible="False" />
                         <Image x:Name="DlgBild" Aspect="AspectFill" HeightRequest="180" IsVisible="False" />
                         <VerticalStackLayout Padding="18,14" Spacing="8">
                             <Label x:Name="DlgKat" FontSize="12" FontAttributes="Bold" TextColor="#0d9488" />

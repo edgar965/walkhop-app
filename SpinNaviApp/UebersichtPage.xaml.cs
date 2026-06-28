@@ -38,6 +38,11 @@ public partial class UebersichtPage : ContentPage
     private readonly Dictionary<string, Button> _chips = new();
     private readonly Dictionary<int, Button> _radiusBtns = new();
 
+    // ---- Detail-Dialog: Mini-Karte mit der Tour-Route (wie im Web-Vorbild) ----
+    private Mapsui.Map? _dlgMap;
+    private MemoryLayer _dlgRouteLayer = null!;
+    private MRect? _dlgBox;          // letzte Routen-Bounding-Box (für verzögertes Nachzoomen)
+
     private List<TourInfo> _alle = new();
     private List<TourInfo> _gefiltert = new();
     private List<FotoPunkt> _fotos = new();
@@ -542,7 +547,11 @@ public partial class UebersichtPage : ContentPage
         string dauer = t.DauerMin >= 60 ? $"{t.DauerMin / 60}:{t.DauerMin % 60:00} h" : $"{t.DauerMin} Min.";
         DlgBadges.Text = $"📏 {t.Km:0.0} km   🕒 ≈ {dauer}" + (string.IsNullOrEmpty(t.Grad) ? "" : $"   💪 {t.Grad}");
         DlgBeschr.Text = t.Beschreibung;
-        if (!string.IsNullOrEmpty(t.Bild)) { DlgBild.Source = t.Bild; DlgBild.IsVisible = true; }
+        // Oben die Mini-Karte mit der GPS-Route zeigen (Web-Vorbild). Steht eine Karte,
+        // bleibt das Titelbild aus (sonst zwei 180-px-Blöcke übereinander) – wie im Web
+        // (Karte ODER Bild im Visual-Bereich).
+        bool karteDa = DlgRouteZeichnen(t);
+        if (!karteDa && !string.IsNullOrEmpty(t.Bild)) { DlgBild.Source = t.Bild; DlgBild.IsVisible = true; }
         else DlgBild.IsVisible = false;
         DlgPois.Clear();
         DlgPoiTitel.IsVisible = false;
@@ -558,13 +567,136 @@ public partial class UebersichtPage : ContentPage
             if (_gewaehlt?.Id != id || pois.Count == 0) return;   // Dialog evtl. schon gewechselt
             DlgPoiTitel.IsVisible = true;
             foreach (var p in pois.Take(12))
-            {
-                var zeile = string.IsNullOrEmpty(p.Kategorie) ? p.Name : $"{p.Name} · {p.Kategorie}";
-                if (p.DistM > 0) zeile += $" · {p.DistM} m vom Weg";
-                DlgPois.Add(new Label { Text = "• " + zeile, FontSize = 13, TextColor = Microsoft.Maui.Graphics.Color.FromArgb("#334155") });
-            }
+                DlgPois.Add(PoiZeile(p));
         }
         catch (Exception ex) { Debug.WriteLine(ex); }
+    }
+
+    // Eine Sehenswürdigkeit-Zeile: Foto-Thumbnail (44×44, abgerundet) links neben Name + Distanz,
+    // wie im Web-Detail-Dialog (.tdlg-poi). Bild-URL kommt aus details.json (relativ → ApiBase davor).
+    private static View PoiZeile(TourPoi p)
+    {
+        var grid = new Grid
+        {
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star) },
+            ColumnSpacing = 10,
+            Padding = new Thickness(0, 4),
+        };
+        // Thumbnail in abgerundetem Rahmen (clippt das Bild auf runde Ecken)
+        var rahmen = new Border
+        {
+            WidthRequest = 44, HeightRequest = 44, StrokeThickness = 0,
+            BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#e2e8f0"),
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
+            VerticalOptions = LayoutOptions.Center,
+        };
+        if (!string.IsNullOrEmpty(p.Bild))
+        {
+            var url = p.Bild.StartsWith("http") ? p.Bild : AppConfig.ApiBase + p.Bild;
+            var bild = new Image { Aspect = Aspect.AspectFill, WidthRequest = 44, HeightRequest = 44 };
+            try { bild.Source = ImageSource.FromUri(new Uri(url)); } catch (Exception ex) { Debug.WriteLine(ex); }
+            rahmen.Content = bild;
+        }
+        else   // kein Foto → Anfangsbuchstabe als Platzhalter (wie die .ph-Box im Web)
+        {
+            rahmen.Content = new Label
+            {
+                Text = string.IsNullOrEmpty(p.Name) ? "•" : p.Name.Substring(0, 1),
+                FontAttributes = FontAttributes.Bold, FontSize = 16,
+                TextColor = Microsoft.Maui.Graphics.Color.FromArgb("#64748b"),
+                HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center,
+            };
+        }
+        Grid.SetColumn(rahmen, 0);
+
+        var name = new Label
+        {
+            Text = p.Name, FontSize = 13, FontAttributes = FontAttributes.Bold,
+            TextColor = Microsoft.Maui.Graphics.Color.FromArgb("#0f172a"),
+        };
+        var unter = p.Kategorie;
+        if (p.DistM > 0) unter = string.IsNullOrEmpty(unter) ? $"{p.DistM} m vom Weg" : $"{unter} · {p.DistM} m vom Weg";
+        var texte = new VerticalStackLayout { Spacing = 1, VerticalOptions = LayoutOptions.Center };
+        texte.Add(name);
+        if (!string.IsNullOrEmpty(unter))
+            texte.Add(new Label { Text = unter, FontSize = 11, TextColor = Microsoft.Maui.Graphics.Color.FromArgb("#64748b") });
+        Grid.SetColumn(texte, 1);
+
+        grid.Children.Add(rahmen);
+        grid.Children.Add(texte);
+        return grid;
+    }
+
+    // ---- Detail-Dialog: Mini-Karte mit der Tour-Route -------------------------
+    // Baut die zweite Mapsui-Karte im Dialog einmalig auf (Tile-Basislayer wie die Hauptkarte
+    // + eine Memory-Ebene für die Route). GPU-Rendering ist global aktiv – nichts extra nötig.
+    private void DlgKarteVorbereiten()
+    {
+        if (_dlgMap != null) return;
+        _dlgMap = new Mapsui.Map();
+        _dlgMap.Layers.Add(new TileLayer(MapQuellen.Quelle(_modus)) { Name = "Basis" });
+        // Style = null: kein Layer-Default-Symbol hinter den Start/Ziel-Punkten (grauer Kreis).
+        _dlgRouteLayer = new MemoryLayer("DlgRoute") { Style = null };
+        _dlgMap.Layers.Add(_dlgRouteLayer);
+        DlgMap.Map = _dlgMap;
+        DlgMap.UseDoubleTap = false;   // Tipps reagieren sofort (kein 200-ms-Doppeltipp-Warten)
+    }
+
+    // Zeichnet die Route der Tour in die Dialog-Karte und zoomt darauf. Liefert true, wenn eine
+    // Karte gezeigt wird (Route ≥ 2 Punkte), sonst false (dann blendet DialogZeigen das Titelbild ein).
+    private bool DlgRouteZeichnen(TourInfo t)
+    {
+        if (t.Route.Count < 2) { DlgMap.IsVisible = false; _dlgBox = null; return false; }
+        DlgKarteVorbereiten();
+        DlgMap.IsVisible = true;
+        var coords = new Coordinate[t.Route.Count];
+        double minx = double.MaxValue, miny = double.MaxValue, maxx = double.MinValue, maxy = double.MinValue;
+        for (int i = 0; i < t.Route.Count; i++)
+        {
+            var (x, y) = SphericalMercator.FromLonLat(t.Route[i].lon, t.Route[i].lat);
+            coords[i] = new Coordinate(x, y);
+            if (x < minx) minx = x; if (x > maxx) maxx = x;
+            if (y < miny) miny = y; if (y > maxy) maxy = y;
+        }
+        var linie = new GeometryFeature { Geometry = new LineString(coords) };
+        linie.Styles.Add(new VectorStyle { Line = new Pen(Farbe(t.Farbe), 4) { PenStyle = PenStyle.Solid } });
+        var feats = new List<IFeature>
+        {
+            linie,
+            DlgPunkt(t.Route[0], "#15803d"),    // Start grün
+            DlgPunkt(t.Route[^1], "#dc2626"),   // Ziel rot
+        };
+        _dlgRouteLayer.Features = feats;
+        _dlgRouteLayer.DataHasChanged();
+        // Etwas Rand um die Route lassen (12 % + 50 m), damit Start/Ziel nicht am Kartenrand kleben.
+        double padx = (maxx - minx) * 0.12 + 50, pady = (maxy - miny) * 0.12 + 50;
+        _dlgBox = new MRect(minx - padx, miny - pady, maxx + padx, maxy + pady);
+        // Sofort zoomen UND kurz danach erneut: beim ersten Öffnen hat die MapControl noch keine
+        // Größe (Dialog wird gerade sichtbar), darum greift erst das verzögerte Nachzoomen.
+        DlgZoomAnwenden();
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(250), DlgZoomAnwenden);
+        return true;
+    }
+
+    private void DlgZoomAnwenden()
+    {
+        if (_dlgMap == null || _dlgBox == null) return;
+        try { _dlgMap.Navigator.ZoomToBox(_dlgBox); _dlgMap.RefreshGraphics(); }
+        catch (Exception ex) { Debug.WriteLine(ex); }
+    }
+
+    // Start-/Ziel-Punkt (gefüllter Kreis mit weißem Rand) für die Dialog-Mini-Karte.
+    private static GeometryFeature DlgPunkt((double lat, double lon) p, string hex)
+    {
+        var (x, y) = SphericalMercator.FromLonLat(p.lon, p.lat);
+        var f = new GeometryFeature { Geometry = new NetTopologySuite.Geometries.Point(x, y) };
+        f.Styles.Add(new SymbolStyle
+        {
+            SymbolType = SymbolType.Ellipse, SymbolScale = 0.5,
+            Fill = new Mapsui.Styles.Brush(Mapsui.Styles.Color.FromString(hex)),
+            Outline = new Pen(Mapsui.Styles.Color.White, 2),
+        });
+        return f;
     }
 
     private void OnDialogZu(object? sender, EventArgs e) => Dialog.IsVisible = false;

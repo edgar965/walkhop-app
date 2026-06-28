@@ -203,6 +203,10 @@
                                     BackgroundColor="#e2231a" TextColor="White" CornerRadius="12" FontAttributes="Bold" HeightRequest="48" />
                         </Grid>
 
+                        <!-- Zurück zur Start-Seite: nur in der Vorschau (vor Start / nach Stop), nicht während aktiver Navigation. -->
+                        <Button x:Name="ZurueckBtn" AutomationId="navi_zurueck" IsVisible="False" Text="Zurück" Clicked="OnZurueck"
+                                BackgroundColor="#f1f5f9" TextColor="#475569" CornerRadius="12" FontAttributes="Bold" HeightRequest="48" />
+
                         <!-- Tour-Aktionen (nur bei aktiver Tour) – aus dem entfernten Karten-Sheet hierher verschoben -->
                         <VerticalStackLayout x:Name="TourAktionen" IsVisible="False" Spacing="8" Margin="0,4,0,0">
                             <BoxView HeightRequest="1" Color="#e2e8f0" />

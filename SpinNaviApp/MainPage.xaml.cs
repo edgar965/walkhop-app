@@ -46,6 +46,9 @@ public partial class MainPage : ContentPage
     private List<TourInfo> _touren = new();
     private bool _tourenGezeichnet;
     private MemoryLayer _richtungLayer = null!;   // lila Richtungspfeil (Schaft + Spitze) voraus auf der Route
+    private MemoryLayer _breadcrumbLayer = null!; // dezente „Brotkrumen"-Spur des zurückgelegten Weges (unter der Route)
+    private readonly List<(double lat, double lon)> _breadcrumb = new();   // gesammelte GPS-Spur
+    private readonly object _breadcrumbLock = new();
     private double _gezeichnetHeading = -999;     // zuletzt gezeichnete Blickrichtung (Redraw-Drosselung)
     private double _letzteRes = -1;               // zuletzt gezeichnete Auflösung (Chevron-Größen-Redraw)
     private TileLayer _basisLayer = null!;
@@ -132,6 +135,10 @@ public partial class MainPage : ContentPage
         // Tour-Routen-Overlay (unter der aktiven Route): dezent, antippbar zum „Abwandern".
         _tourLayer = new MemoryLayer("Touren");
         _map.Layers.Add(_tourLayer);
+        // Breadcrumb-Spur (zurückgelegter Weg): dezent, liegt ÜBER dem Tour-Overlay, aber
+        // UNTER der aktiven Route und dem Positionsmarker. Style = null: kein Layer-Default-Symbol.
+        _breadcrumbLayer = new MemoryLayer("Breadcrumb") { Style = null };
+        _map.Layers.Add(_breadcrumbLayer);
         _routeLayer = new MemoryLayer("Route");
         _map.Layers.Add(_routeLayer);
         // Lila Richtungspfeil: liegt ÜBER der (blauen) Route, aber UNTER dem Positionsmarker.
@@ -463,9 +470,22 @@ public partial class MainPage : ContentPage
         if (_aufnahme) lock (_trackLock) _track.Add((loc.Latitude, loc.Longitude));
         var (x, y) = ZuMercator(loc.Latitude, loc.Longitude);
         _letztePos = new MPoint(x, y);
+        // Breadcrumb-Spur sammeln: neuen Punkt nur aufnehmen, wenn er spürbar (>8 m) vom letzten
+        // Krumen-Punkt entfernt ist – das filtert GPS-Rauschen im Stand und hält die Linie schlank.
+        bool breadcrumbNeu = false;
+        lock (_breadcrumbLock)
+        {
+            if (_breadcrumb.Count == 0 ||
+                NavGeo.Haversine(_breadcrumb[^1].lat, _breadcrumb[^1].lon, loc.Latitude, loc.Longitude) > 8)
+            {
+                _breadcrumb.Add((loc.Latitude, loc.Longitude));
+                breadcrumbNeu = true;
+            }
+        }
         MainThread.BeginInvokeOnMainThread(() =>
         {
             PositionZeichnen();
+            if (breadcrumbNeu) BreadcrumbZeichnen();
             double kurs = _kompassHatWert ? _heading : _gpsKurs;   // ohne Kompass-HW (N55): GPS-Fahrtrichtung
             if (_zentrierenNaechsterFix)
             {
@@ -528,8 +548,19 @@ public partial class MainPage : ContentPage
         if (wahl == "🥾 Hierhin navigieren") await RouteZu(lat, lon);
         else if (wahl == "📍 Von hier starten")
         {
-            _startUeberschreibung = (lat, lon);
-            Status("Start gesetzt – Ziel antippen", autoAus: true);
+            // Läuft eine Navigation mit Ziel? → sofort umrouten: Route NEU ab dem geklickten
+            // Punkt zum bisherigen Ziel berechnen (RouteZu nimmt _startUeberschreibung als Start).
+            if (_navAktiv && _navZiel is { } ziel)
+            {
+                _startUeberschreibung = (lat, lon);
+                await RouteZu(ziel.lat, ziel.lon);
+            }
+            else
+            {
+                // Keine Navigation aktiv: Startpunkt nur für die nächste Routenberechnung merken.
+                _startUeberschreibung = (lat, lon);
+                Status("Start gesetzt – Ziel antippen", autoAus: true);
+            }
         }
         else if (wahl == "➕ Zum Plan hinzufügen") { _plan.Add((lat, lon)); PlanAnzeigen(); }
     }
@@ -614,6 +645,7 @@ public partial class MainPage : ContentPage
         StartBtn.IsVisible = !_navAktiv;
         StopBtn.IsVisible = _navAktiv;
         StopBtnPeek.IsVisible = _navAktiv;   // Stop auch im immer sichtbaren Peek
+        ZurueckBtn.IsVisible = !_navAktiv;   // „Zurück" zur Start-Seite nur in der Vorschau (vor Start / nach Stop)
         AnweisungBox.IsVisible = _navAktiv;
         TourAktionen.IsVisible = _istTour;   // Tour-Aktionen nur bei aktiver Tour (im Navi-Panel)
         if (_navAktiv) AltChip.IsVisible = false;   // nach Start keine graue Alternativ-Anzeige
@@ -879,6 +911,13 @@ public partial class MainPage : ContentPage
     // damit man dieselbe Route neu starten oder ein neues Ziel wählen kann.
     private void OnStop(object? sender, EventArgs e) => ZurueckZurVorschau();
 
+    // „Zurück"-Knopf (nur in der Vorschau): zurück zur Start-/Übersichtsseite.
+    private async void OnZurueck(object? sender, EventArgs e)
+    {
+        try { await Shell.Current.GoToAsync("//start"); }
+        catch (Exception ex) { Debug.WriteLine(ex); }
+    }
+
     private void ZurueckZurVorschau()
     {
         if (_navPunkte == null) { NavigationBeenden(); return; }   // ohne Route: ganz schließen
@@ -1063,6 +1102,7 @@ public partial class MainPage : ContentPage
             _routeLayer.Enabled = false;
             _richtungLayer.Enabled = false;
             _tourLayer.Enabled = false;
+            _breadcrumbLayer.Enabled = false;
         }
         if (_zoomTimer == null)
         {
@@ -1081,6 +1121,7 @@ public partial class MainPage : ContentPage
         _routeLayer.Enabled = true;
         _richtungLayer.Enabled = true;
         _tourLayer.Enabled = true;
+        _breadcrumbLayer.Enabled = true;
         // Pfeilspitze ist pixelgroß → einmal auf die neue Auflösung neu zeichnen.
         if (_navAktiv && _navPunkte != null) RichtungPfeilAktualisieren(_letztEntlang);
         _map.RefreshGraphics();
@@ -1170,6 +1211,36 @@ public partial class MainPage : ContentPage
         });
         _positionLayer.Features = new List<IFeature> { f };
         _positionLayer.DataHasChanged();
+    }
+
+    // Breadcrumb-Spur („Brotkrumen") als dezente grau-blaue, dünne, halbtransparente Linie zeichnen
+    // (Mercator-Geometrie wie die Route, aber unauffälliger und UNTER der aktiven Route).
+    private void BreadcrumbZeichnen()
+    {
+        List<(double lat, double lon)> pts;
+        lock (_breadcrumbLock) pts = new List<(double lat, double lon)>(_breadcrumb);
+        if (pts.Count < 2)
+        {
+            if (_breadcrumbLayer.Features.Any())
+            { _breadcrumbLayer.Features = new List<IFeature>(); _breadcrumbLayer.DataHasChanged(); }
+            return;
+        }
+        var coords = new Coordinate[pts.Count];
+        for (int i = 0; i < pts.Count; i++)
+        { var (x, y) = ZuMercator(pts[i].lat, pts[i].lon); coords[i] = new Coordinate(x, y); }
+        var f = new GeometryFeature { Geometry = new LineString(coords) };
+        // dezent: grau-blau (#64748b), dünn, halbtransparent (Alpha 150) – liegt unter der kräftigen Route.
+        f.Styles.Add(new VectorStyle { Line = new Pen(Mapsui.Styles.Color.FromArgb(150, 100, 116, 139), 4) });
+        _breadcrumbLayer.Features = new List<IFeature> { f };
+        _breadcrumbLayer.DataHasChanged();
+    }
+
+    /// <summary>Setzt die Breadcrumb-Spur zurück (z. B. für einen frischen Track).</summary>
+    private void BreadcrumbLeeren()
+    {
+        lock (_breadcrumbLock) _breadcrumb.Clear();
+        _breadcrumbLayer.Features = new List<IFeature>();
+        _breadcrumbLayer.DataHasChanged();
     }
 
     private void AltAnzeigen()
