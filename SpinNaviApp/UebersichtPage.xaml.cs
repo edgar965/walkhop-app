@@ -18,12 +18,13 @@ public partial class UebersichtPage : ContentPage
     private const int MaxRouten = 250;   // Obergrenze gezeichneter Routen (Performance)
     private const int ZentrierZoom = 14; // Zoomstufe beim Zentrieren auf den Live-Standort
 
-    private static readonly (string key, string label)[] FacettenChips =
+    // Facetten-Chips: key = Filter-Facette, txtKey = Übersetzungs-Schlüssel (siehe Texte.cs).
+    private static readonly (string key, string txtKey)[] FacettenChips =
     {
-        ("", "Alle"), ("stadt", "🏙 Stadt"), ("see", "🌊 See & Wasser"),
-        ("wandern_kurz", "🥾 bis 5 km"), ("wandern_mittel", "🥾 5–15 km"), ("wandern_lang", "🥾 ab 15 km"),
-        ("wandern", "🥾 Wandern"), ("radtour", "🚴 Radtour"), ("rundtour", "🔄 Rundtour"),
-        ("bahnanreise", "🚉 Bahn"), ("qualitytour", "⭐ QualityTour"), ("edgars", "🧭 Edgars"),
+        ("", "fac_alle"), ("stadt", "fac_stadt"), ("see", "fac_see"),
+        ("wandern_kurz", "fac_wandern_kurz"), ("wandern_mittel", "fac_wandern_mittel"), ("wandern_lang", "fac_wandern_lang"),
+        ("wandern", "fac_wandern"), ("radtour", "fac_radtour"), ("rundtour", "fac_rundtour"),
+        ("bahnanreise", "fac_bahnanreise"), ("qualitytour", "fac_qualitytour"), ("edgars", "fac_edgars"),
     };
     private static readonly int[] RadiusPresets = { 5, 15, 30, 60 };
 
@@ -133,6 +134,10 @@ public partial class UebersichtPage : ContentPage
 
         ChipsBauen();
         RadiusBauen();
+
+        // Bei Laufzeit-Sprachwechsel die im Code erzeugten Chip-Beschriftungen neu setzen
+        // (alle statischen XAML-Texte aktualisieren sich über {loc:Translate} selbst).
+        L.Geaendert += () => MainThread.BeginInvokeOnMainThread(ChipsTexteSetzen);
     }
 
     private static double Aufloesung(int zoom) => WELT0 / Math.Pow(2, zoom);
@@ -177,7 +182,7 @@ public partial class UebersichtPage : ContentPage
         KompassIconAktualisieren();
         if (_geladen) return;
         _geladen = true;
-        Status("Touren werden geladen …");
+        Status(L.T("ue_st_touren_laden"));
         // Erst den ersten Frame (Karte + Bedienelemente) rendern lassen, dann im Hintergrund
         // laden. So blockieren Fetch/Parse/Filter nie den UI-Thread (kein Einfrieren/ANR).
         Dispatcher.Dispatch(() => _ = ErstLadenAsync());
@@ -201,7 +206,7 @@ public partial class UebersichtPage : ContentPage
             }
             Anwenden();                                    // Filtern + Zeichnen ebenfalls off-thread
         }
-        catch (Exception ex) { Debug.WriteLine(ex); Status("Touren konnten nicht geladen werden"); }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("ue_st_touren_fehler")); }
     }
 
     // ---- Filter / Zeichnen ----------------------------------------------------
@@ -399,9 +404,9 @@ public partial class UebersichtPage : ContentPage
         var titel = new Label { Text = bu, TextColor = Microsoft.Maui.Graphics.Colors.White, FontSize = 14,
                                 Padding = new Thickness(14, 10), BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#003153"),
                                 LineBreakMode = LineBreakMode.WordWrap };
-        var navBtn = new Button { Text = "🧭 Hierhin navigieren", BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#16a34a"),
+        var navBtn = new Button { Text = L.T("foto_navigieren"), BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#16a34a"),
                                   TextColor = Microsoft.Maui.Graphics.Colors.White, CornerRadius = 10, Margin = new Thickness(12, 6) };
-        var zuBtn = new Button { Text = "Schließen", BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#334155"),
+        var zuBtn = new Button { Text = L.T("schliessen"), BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#334155"),
                                  TextColor = Microsoft.Maui.Graphics.Colors.White, CornerRadius = 10, Margin = new Thickness(12, 0, 12, 12) };
         var grid = new Grid { RowDefinitions = { new RowDefinition { Height = GridLength.Star }, new RowDefinition { Height = GridLength.Auto },
                                                   new RowDefinition { Height = GridLength.Auto }, new RowDefinition { Height = GridLength.Auto } },
@@ -423,21 +428,22 @@ public partial class UebersichtPage : ContentPage
     // GPS-Route öffnet hingegen das Tour-Detail-Fenster (siehe OnKarteTipp/LongTap), nicht dieses Menü.
     private async Task KontextmenueZeigen(double lat, double lon)
     {
-        var optionen = new List<string> { "🧭 Navigation zu", "🥾 Neue Wanderung ab hier", "📌 Marker setzen" };
+        string navZu = L.T("ktx_navigation_zu"), neueW = L.T("ktx_neue_wanderung"), markerOpt = L.T("ktx_marker_setzen");
+        var optionen = new List<string> { navZu, neueW, markerOpt };
         optionen.Add(Standort.EntfernungZeile(lat, lon, _letzteGeo));   // Info-Zeile vor „Abbrechen"
-        string wahl = await DisplayActionSheet(null, "Abbrechen", null, optionen.ToArray());
-        if (wahl == "🧭 Navigation zu")
+        string wahl = await DisplayActionSheet(null, L.T("abbrechen"), null, optionen.ToArray());
+        if (wahl == navZu)
         {
             MainPage.GeplantesZiel = (lat, lon);
             await Shell.Current.GoToAsync("//navigation");
         }
-        else if (wahl == "🥾 Neue Wanderung ab hier") await NeueWanderung(lat, lon);
-        else if (wahl == "📌 Marker setzen")
+        else if (wahl == neueW) await NeueWanderung(lat, lon);
+        else if (wahl == markerOpt)
         {
-            string name = await DisplayPromptAsync("Marker setzen", "Name des Markers:",
-                                                   "Setzen", "Abbrechen", "z. B. Treffpunkt");
+            string name = await DisplayPromptAsync(L.T("marker_titel"), L.T("marker_msg"),
+                                                   L.T("marker_setzen_btn"), L.T("abbrechen"), L.T("marker_placeholder"));
             if (name == null) return;   // abgebrochen
-            MarkerSetzen(lat, lon, string.IsNullOrWhiteSpace(name) ? "Marker" : name.Trim());
+            MarkerSetzen(lat, lon, string.IsNullOrWhiteSpace(name) ? L.T("marker_default") : name.Trim());
         }
     }
 
@@ -445,16 +451,19 @@ public partial class UebersichtPage : ContentPage
     // Foto-Sehenswürdigkeiten) und bietet sie zum Abwandern an.
     private async Task NeueWanderung(double lat, double lon)
     {
-        string dWahl = await DisplayActionSheet("Neue Wanderung – wie lang?", "Abbrechen", null,
-            "5 km zu Fuß", "10 km zu Fuß", "15 km zu Fuß", "20 km Fahrrad");
-        if (string.IsNullOrEmpty(dWahl) || dWahl == "Abbrechen") return;
-        double km = dWahl.StartsWith("5") ? 5 : dWahl.StartsWith("10") ? 10 : dWahl.StartsWith("15") ? 15 : 20;
-        string costing = dWahl.Contains("Fahrrad") ? "bicycle" : "pedestrian";
+        string opt5 = L.T("nw_5km"), opt10 = L.T("nw_10km"), opt15 = L.T("nw_15km"), opt20 = L.T("nw_20km_rad");
+        string dWahl = await DisplayActionSheet(L.T("nw_titel"), L.T("abbrechen"), null, opt5, opt10, opt15, opt20);
+        if (string.IsNullOrEmpty(dWahl) || dWahl == L.T("abbrechen")) return;
+        double km; string costing;
+        if (dWahl == opt5) { km = 5; costing = "pedestrian"; }
+        else if (dWahl == opt10) { km = 10; costing = "pedestrian"; }
+        else if (dWahl == opt15) { km = 15; costing = "pedestrian"; }
+        else { km = 20; costing = "bicycle"; }
 
-        Status($"⏳ Erzeuge {km:0}-km-Touren …");
+        Status(L.T("nw_erzeuge", km));
         var vorschlaege = await WanderGenService.ErzeugeAsync(lat, lon, km, costing);
         Status(null);
-        if (vorschlaege.Count == 0) { StatusKurz("Keine Wanderung gefunden.", 4); return; }
+        if (vorschlaege.Count == 0) { StatusKurz(L.T("nw_keine"), 4); return; }
         _genWanderungen = vorschlaege;
 
         var features = new List<IFeature>();
@@ -478,9 +487,9 @@ public partial class UebersichtPage : ContentPage
         if (minx <= maxx) _map.Navigator.ZoomToBox(new MRect(minx, miny, maxx, maxy));
         _map.RefreshGraphics();
 
-        var namen = vorschlaege.Select(w => w.Name + (w.Fotos > 0 ? $" · {w.Fotos} 📷" : "")).ToArray();
-        string pick = await DisplayActionSheet("Welche Wanderung abwandern?", "Nur ansehen", null, namen);
-        if (string.IsNullOrEmpty(pick) || pick == "Nur ansehen") return;
+        var namen = vorschlaege.Select(w => w.Name + (w.Fotos > 0 ? L.T("foto_count", w.Fotos) : "")).ToArray();
+        string pick = await DisplayActionSheet(L.T("nw_welche"), L.T("nw_nur_ansehen"), null, namen);
+        if (string.IsNullOrEmpty(pick) || pick == L.T("nw_nur_ansehen")) return;
         var gewaehlt = vorschlaege.FirstOrDefault(w => pick.StartsWith(w.Name));
         if (gewaehlt == null) return;
         var t = new TourInfo(-1, gewaehlt.Name, gewaehlt.Km, gewaehlt.DauerMin,
@@ -535,7 +544,7 @@ public partial class UebersichtPage : ContentPage
         });
         _markerLayer.Features = new List<IFeature> { f };
         _markerLayer.DataHasChanged();
-        StatusKurz($"📌 Marker {name} gesetzt", 4);   // blendet sich nach 4 s aus
+        StatusKurz(L.T("marker_gesetzt", name), 4);   // blendet sich nach 4 s aus
     }
 
     // ---- Detail-Dialog --------------------------------------------------------
@@ -544,8 +553,8 @@ public partial class UebersichtPage : ContentPage
         _gewaehlt = t;
         DlgKat.Text = t.Kategorie;
         DlgName.Text = t.Name;
-        string dauer = t.DauerMin >= 60 ? $"{t.DauerMin / 60}:{t.DauerMin % 60:00} h" : $"{t.DauerMin} Min.";
-        DlgBadges.Text = $"📏 {t.Km:0.0} km   🕒 ≈ {dauer}" + (string.IsNullOrEmpty(t.Grad) ? "" : $"   💪 {t.Grad}");
+        string dauer = t.DauerMin >= 60 ? L.T("dlg_dauer_h", t.DauerMin / 60, t.DauerMin % 60) : L.T("dlg_dauer_min", t.DauerMin);
+        DlgBadges.Text = L.T("dlg_badges", t.Km, dauer) + (string.IsNullOrEmpty(t.Grad) ? "" : L.T("dlg_badges_grad", t.Grad));
         DlgBeschr.Text = t.Beschreibung;
         // Oben die Mini-Karte mit der GPS-Route zeigen (Web-Vorbild). Steht eine Karte,
         // bleibt das Titelbild aus (sonst zwei 180-px-Blöcke übereinander) – wie im Web
@@ -615,7 +624,7 @@ public partial class UebersichtPage : ContentPage
             TextColor = Microsoft.Maui.Graphics.Color.FromArgb("#0f172a"),
         };
         var unter = p.Kategorie;
-        if (p.DistM > 0) unter = string.IsNullOrEmpty(unter) ? $"{p.DistM} m vom Weg" : $"{unter} · {p.DistM} m vom Weg";
+        if (p.DistM > 0) unter = string.IsNullOrEmpty(unter) ? L.T("poi_dist", p.DistM) : L.T("poi_dist_kat", unter, p.DistM);
         var texte = new VerticalStackLayout { Spacing = 1, VerticalOptions = LayoutOptions.Center };
         texte.Add(name);
         if (!string.IsNullOrEmpty(unter))
@@ -634,7 +643,9 @@ public partial class UebersichtPage : ContentPage
     {
         if (_dlgMap != null) return;
         _dlgMap = new Mapsui.Map();
-        _dlgMap.Layers.Add(new TileLayer(MapQuellen.Quelle(_modus)) { Name = "Basis" });
+        // Schlichtes OSM (wie der Django-Dialog) – NICHT der Wander-/Topo-Stil, der vorhandene
+        // Wander-/Radrouten als bunte Linien rendert (die als „andere Routen" erscheinen würden).
+        _dlgMap.Layers.Add(new TileLayer(MapQuellen.Quelle(Kartenmodus.Standard)) { Name = "Basis" });
         // Style = null: kein Layer-Default-Symbol hinter den Start/Ziel-Punkten (grauer Kreis).
         _dlgRouteLayer = new MemoryLayer("DlgRoute") { Style = null };
         _dlgMap.Layers.Add(_dlgRouteLayer);
@@ -659,7 +670,8 @@ public partial class UebersichtPage : ContentPage
             if (y < miny) miny = y; if (y > maxy) maxy = y;
         }
         var linie = new GeometryFeature { Geometry = new LineString(coords) };
-        linie.Styles.Add(new VectorStyle { Line = new Pen(Farbe(t.Farbe), 4) { PenStyle = PenStyle.Solid } });
+        // NUR die ausgewählte Route, in ROT (wie der Django-Dialog) – nicht in der Tour-Farbe.
+        linie.Styles.Add(new VectorStyle { Line = new Pen(Mapsui.Styles.Color.FromString("#dc2626"), 4) { PenStyle = PenStyle.Solid } });
         var feats = new List<IFeature>
         {
             linie,
@@ -720,20 +732,20 @@ public partial class UebersichtPage : ContentPage
     {
         string q = (OrtEntry.Text ?? "").Trim();
         if (string.IsNullOrWhiteSpace(q)) return;
-        Status("Ort wird gesucht …");
+        Status(L.T("ue_st_ort_suchen"));
         try
         {
             var treffer = await GeocodeService.SucheAsync(q);
-            if (treffer.Count == 0) { Status("Ort nicht gefunden"); return; }
+            if (treffer.Count == 0) { Status(L.T("ue_st_ort_nicht_gefunden")); return; }
             var o = treffer[0];
             var (x, y) = SphericalMercator.FromLonLat(o.Lon, o.Lat);
             _map.Navigator.CenterOnAndZoomTo(new MPoint(x, y), Aufloesung(12));
             _zentrum = (o.Lat, o.Lon);
             MittelpunktSetzen(o.Name);
             UmkreisCheck.IsChecked = true;   // aktiviert Umkreis (CheckedChanged → Anwenden)
-            Anwenden($"📍 {o.Name} · {_radiusKm} km");   // Status erst NACH dem Zeichnen setzen (kein Überschreiben)
+            Anwenden(L.T("ue_ort_gefunden", o.Name, _radiusKm));   // Status erst NACH dem Zeichnen setzen (kein Überschreiben)
         }
-        catch (Exception ex) { Debug.WriteLine(ex); Status("Ortssuche fehlgeschlagen"); }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("ue_st_ortssuche_fehlgeschlagen")); }
     }
 
     private async void OnDialogNavigieren(object? sender, EventArgs e)
@@ -759,13 +771,13 @@ public partial class UebersichtPage : ContentPage
             var st = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
             if (st != PermissionStatus.Granted) st = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
             var loc = await Geolocation.Default.GetLocationAsync(new GeolocationRequest(GeolocationAccuracy.Medium));
-            if (loc == null) { Status("Kein Standort"); return; }
+            if (loc == null) { Status(L.T("ue_st_kein_standort")); return; }
             var (x, y) = SphericalMercator.FromLonLat(loc.Longitude, loc.Latitude);
             _map.Navigator.CenterOnAndZoomTo(new MPoint(x, y), Aufloesung(12));
             _zentrum = (loc.Latitude, loc.Longitude);
             if (_umkreis) Anwenden();
         }
-        catch (Exception ex) { Debug.WriteLine(ex); Status("Standort nicht verfügbar"); }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("ue_st_standort_nicht_verfuegbar")); }
     }
 
     // ---- Live-Standort (Beam) + Kompass --------------------------------------
@@ -995,11 +1007,11 @@ public partial class UebersichtPage : ContentPage
     // ---- Chips ----------------------------------------------------------------
     private void ChipsBauen()
     {
-        foreach (var (key, label) in FacettenChips)
+        foreach (var (key, txtKey) in FacettenChips)
         {
             var b = new Button
             {
-                Text = label, FontSize = 13, Padding = new Thickness(14, 6), CornerRadius = 16,
+                Text = L.T(txtKey), FontSize = 13, Padding = new Thickness(14, 6), CornerRadius = 16,
                 CommandParameter = key,
                 AutomationId = "osm_chip_" + (string.IsNullOrEmpty(key) ? "alle" : key.Trim('_')),
             };
@@ -1008,6 +1020,14 @@ public partial class UebersichtPage : ContentPage
             ChipLeiste.Add(b);
         }
         ChipsMarkieren();
+    }
+
+    // Chip-Beschriftungen bei Sprachwechsel neu setzen (die Chips werden im Code erzeugt,
+    // daher keine automatische {loc:Translate}-Aktualisierung).
+    private void ChipsTexteSetzen()
+    {
+        foreach (var (key, txtKey) in FacettenChips)
+            if (_chips.TryGetValue(key, out var b)) b.Text = L.T(txtKey);
     }
 
     private void OnChip(object? sender, EventArgs e)
@@ -1033,7 +1053,7 @@ public partial class UebersichtPage : ContentPage
         {
             var (lon, lat) = SphericalMercator.ToLonLat(_map.Navigator.Viewport.CenterX, _map.Navigator.Viewport.CenterY);
             _zentrum = (lat, lon);
-            MittelpunktSetzen("Kartenmitte");
+            MittelpunktSetzen(L.T("mittelpunkt_kartenmitte"));
         }
         Anwenden();
     }
@@ -1046,7 +1066,7 @@ public partial class UebersichtPage : ContentPage
 
     private void MittelpunktSetzen(string name)
     {
-        if (MittelpunktLabel != null) MittelpunktLabel.Text = $"Mittelpunkt: {name}";
+        if (MittelpunktLabel != null) MittelpunktLabel.Text = L.T("mittelpunkt_label", name);
     }
 
     // ---- Aufklapp-Fenster (maps.me-Stil): halbhoch, Griff tippen = zu/auf, wischen = ziehen ----
@@ -1143,7 +1163,7 @@ public partial class UebersichtPage : ContentPage
         else
         {
             _zentrierenNaechsterFix = true;   // sobald der erste Fix kommt, dorthin zentrieren
-            Status("Warte auf GPS-Standort …");
+            Status(L.T("st_warte_gps"));
         }
         // Norden-Modus: Karten-Drehung sperren (dreht sich nicht). Kompass-Modus: entsperrt (App dreht).
         try { _map.Navigator.RotationLock = !_fahrtrichtung; } catch (Exception ex) { Debug.WriteLine(ex); }
@@ -1153,7 +1173,7 @@ public partial class UebersichtPage : ContentPage
         {
             bool kompass = false;
             try { kompass = Compass.Default.IsSupported; } catch (Exception ex) { Debug.WriteLine(ex); }
-            if (!kompass) StatusKurz("Kein Kompass im Gerät – die Karte dreht in Laufrichtung, sobald du gehst.", 6);
+            if (!kompass) StatusKurz(L.T("ue_kein_kompass"), 6);
         }
     }
 
@@ -1209,9 +1229,9 @@ public partial class UebersichtPage : ContentPage
         FotoKnopfAnzeigen();
         if (_fotoAn && _fotos.Count == 0)
         {
-            Status("Fotos werden geladen …");
+            Status(L.T("ue_st_fotos_laden"));
             try { _fotos = await FotoService.LadeAsync(); Status(null); }
-            catch (Exception ex) { Debug.WriteLine(ex); Status("Fotos nicht verfügbar"); }
+            catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("ue_st_fotos_nicht_verfuegbar")); }
         }
         FotoFilterAnwenden();
     }

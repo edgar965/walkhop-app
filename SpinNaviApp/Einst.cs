@@ -97,12 +97,22 @@ public static class Einst
         set => Preferences.Set("v_oberflaeche", value);
     }
 
-    /// <summary>Ansage-/Routensprache: "de" | "en".</summary>
+    /// <summary>App-, Ansage- und Routensprache: "de" | "en". Steuert die gesamte App-Oberfläche
+    /// (über <see cref="Lokalisierung"/>) UND den Routing-/TTS-Locale. Default = Englisch; als Admin
+    /// (e@edgarm.de bzw. Auth.IstAdmin) Deutsch – solange der Nutzer noch nicht selbst gewählt hat
+    /// (<see cref="SpracheGesetzt"/>).</summary>
     public static string Sprache
     {
-        get => Preferences.Get("sprache", "de");
-        set => Preferences.Set("sprache", value);
+        get => Preferences.Get("sprache", StandardSprache);
+        set => Preferences.Set("sprache", value);   // legt den Schlüssel an → SpracheGesetzt = true
     }
+
+    /// <summary>Hat der Nutzer die App-Sprache schon einmal explizit gewählt? Solange nicht, gilt die
+    /// Admin-Default-Regel (<see cref="StandardSprache"/>).</summary>
+    public static bool SpracheGesetzt => Preferences.ContainsKey("sprache");
+
+    /// <summary>Default-Sprache ohne explizite Wahl: Admin → Deutsch, sonst Englisch.</summary>
+    public static string StandardSprache => Auth.IstAdmin ? "de" : "en";
 
     /// <summary>BCP-47-Code für Valhalla/TTS aus <see cref="Sprache"/>.</summary>
     public static string Locale => Sprache == "en" ? "en-US" : "de-DE";

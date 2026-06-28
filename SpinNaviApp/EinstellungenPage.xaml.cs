@@ -18,8 +18,10 @@ public partial class EinstellungenPage : ContentPage
     public EinstellungenPage()
     {
         InitializeComponent();
-        VersionLabel.Text = $"Version {AppInfo.Current.VersionString} (Build {AppInfo.Current.BuildString})";
-        ServerLabel.Text = "Server: " + AppConfig.ApiBase;
+        VersionLabel.Text = L.T("version_label", AppInfo.Current.VersionString, AppInfo.Current.BuildString);
+        ServerLabel.Text = L.T("server_label", AppConfig.ApiBase);
+        // Bei Sprachwechsel die imperativ gesetzten Texte (Sprach-/Einheiten-/Konto-/Cache-Labels) neu rendern.
+        L.Geaendert += SpracheAngewendet;
 
         _laedt = true;
         // Allgemein
@@ -93,13 +95,14 @@ public partial class EinstellungenPage : ContentPage
 
     private void OnSpracheWechseln(object? sender, TappedEventArgs e)
     {
-        Einst.Sprache = Einst.Sprache == "de" ? "en" : "de";
+        // App-Sprache umschalten: Lokalisierung wechselt + persistiert + steuert den Routing-Locale.
+        Lokalisierung.Instanz.Wechsle(Einst.Sprache == "de" ? "en" : "de");
         SpracheLabelSetzen();
     }
 
     private void SpracheLabelSetzen()
     {
-        string t = Einst.Sprache == "en" ? "English" : "Deutsch";
+        string t = Einst.Sprache == "en" ? L.T("sprache_english") : L.T("sprache_deutsch");
         SpracheWert.Text = t;
         NaviSpracheWert.Text = t;
     }
@@ -111,7 +114,20 @@ public partial class EinstellungenPage : ContentPage
     }
 
     private void EinheitenLabelSetzen() =>
-        EinheitenWert.Text = Einst.Einheiten == "imperial" ? "Imperial (mi, ft)" : "Metrisch (km, m)";
+        EinheitenWert.Text = Einst.Einheiten == "imperial" ? L.T("einheiten_imperial") : L.T("einheiten_metrisch");
+
+    // Bei Laufzeit-Sprachwechsel alle imperativ gesetzten Texte neu rendern (die {loc:Translate}-Bindings
+    // aktualisieren sich selbst). Auf dem UI-Thread, da das Event aus beliebigem Kontext kommen kann.
+    private void SpracheAngewendet() => MainThread.BeginInvokeOnMainThread(() =>
+    {
+        VersionLabel.Text = L.T("version_label", AppInfo.Current.VersionString, AppInfo.Current.BuildString);
+        ServerLabel.Text = L.T("server_label", AppConfig.ApiBase);
+        SpracheLabelSetzen();
+        EinheitenLabelSetzen();
+        CacheGroesseAnzeigen();
+        StandardPunktAnzeigen();
+        KontoAnzeigen();
+    });
 
     // ---- Navigation --------------------------------------------------------
     private void OnSprachnavi(object? sender, ToggledEventArgs e) { if (!_laedt) Einst.Ton = e.Value; }
@@ -144,7 +160,7 @@ public partial class EinstellungenPage : ContentPage
     }
 
     private async void OnBluetooth(object? sender, TappedEventArgs e) =>
-        await DisplayAlert("Bluetooth-Wiedergabe", "Die Auswahl der Bluetooth-Wiedergabe folgt in einer späteren Version.", "OK");
+        await DisplayAlert(L.T("einst_bluetooth_titel"), L.T("bluetooth_text"), L.T("ok"));
 
     // ---- Fortbewegung / Wegtyp / Routenoptionen (vom Navi-Sheet hierher verschoben) ----
     private void OnFortbewegung(object? sender, TappedEventArgs e)
@@ -206,10 +222,10 @@ public partial class EinstellungenPage : ContentPage
             if (Directory.Exists(OfflineKarte.CacheDir))
                 foreach (var f in Directory.EnumerateFiles(OfflineKarte.CacheDir, "*", SearchOption.AllDirectories))
                 { bytes += new FileInfo(f).Length; dateien++; }
-            CacheLabel.Text = dateien == 0 ? "Zwischenspeicher: leer"
-                : $"Zwischenspeicher: {dateien} Kacheln · {bytes / 1024.0 / 1024.0:0.0} MB";
+            CacheLabel.Text = dateien == 0 ? L.T("cache_leer")
+                : L.T("cache_info", dateien, bytes / 1024.0 / 1024.0);
         }
-        catch (Exception ex) { Debug.WriteLine(ex); CacheLabel.Text = "Zwischenspeicher: –"; }
+        catch (Exception ex) { Debug.WriteLine(ex); CacheLabel.Text = L.T("cache_strich"); }
     }
 
     // Lädt die Kacheln rund um den aktuellen Standort (~3 km) offline vor. In den Einstellungen
@@ -220,9 +236,8 @@ public partial class EinstellungenPage : ContentPage
         int budget = Auth.AlleFunktionen ? int.MaxValue : (Auth.Premium ? 3 : 0) + Auth.OfflineGekauft;
         if (Einst.OfflineAnzahl >= budget)
         {
-            bool hin = await DisplayAlert("Offline-Karten",
-                "Offline-Karten sind im Premium-Abo enthalten (5 €: 3 Karten, 8 €: alle) oder einzeln kaufbar (3 €).",
-                "Zum Konto", "Abbrechen");
+            bool hin = await DisplayAlert(L.T("offline_titel"), L.T("offline_premium_text"),
+                L.T("offline_zum_konto"), L.T("abbrechen"));
             if (hin) await Shell.Current.GoToAsync("//konto");
             return;
         }
@@ -235,7 +250,7 @@ public partial class EinstellungenPage : ContentPage
         catch (Exception ex) { Debug.WriteLine(ex); }
         if (loc == null)
         {
-            await DisplayAlert("Offline laden", "Aktueller Standort nicht verfügbar – bitte GPS aktivieren und erneut versuchen.", "OK");
+            await DisplayAlert(L.T("offline_laden_titel"), L.T("offline_kein_standort"), L.T("ok"));
             return;
         }
 
@@ -246,14 +261,14 @@ public partial class EinstellungenPage : ContentPage
         var bereich = new MRect(x - r, y - r, x + r, y + r);
         var quelle = MapQuellen.Quelle(Einst.Karte);
         var prog = new Progress<(int done, int total)>(p =>
-            MainThread.BeginInvokeOnMainThread(() => CacheLabel.Text = $"Offline laden … {p.done}/{p.total}"));
+            MainThread.BeginInvokeOnMainThread(() => CacheLabel.Text = L.T("offline_fortschritt", p.done, p.total)));
         try
         {
             int n = await Task.Run(() => OfflineKarte.DownloadAsync(quelle, bereich, 13, 15, 400, prog));
             if (n > 0) Einst.OfflineAnzahl++;
-            await DisplayAlert("Offline-Karten", $"{n} Kacheln rund um deinen Standort offline gespeichert.", "OK");
+            await DisplayAlert(L.T("offline_titel"), L.T("offline_gespeichert", n), L.T("ok"));
         }
-        catch (Exception ex) { Debug.WriteLine(ex); await DisplayAlert("Offline laden", "Beim Laden ist ein Fehler aufgetreten.", "OK"); }
+        catch (Exception ex) { Debug.WriteLine(ex); await DisplayAlert(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok")); }
         finally
         {
             _laedtOffline = false;
@@ -267,7 +282,8 @@ public partial class EinstellungenPage : ContentPage
     // ---- Standard-Punkt (Bezugspunkt für Entfernungsanzeige) ----
     private void StandardPunktAnzeigen()
     {
-        StandardPunktLabel.Text = $"{Einst.StandardName}: {Einst.StandardLat:0.0000}, {Einst.StandardLng:0.0000}";
+        StandardPunktLabel.Text = L.T("standardpunkt_label",
+            Standort.StandardnameAnzeige(Einst.StandardName), Einst.StandardLat, Einst.StandardLng);
     }
 
     private async void OnStandardAufPosition(object? sender, EventArgs e)
@@ -284,7 +300,7 @@ public partial class EinstellungenPage : ContentPage
                 Einst.StandardName = "eigener Punkt";
                 StandardPunktAnzeigen();
             }
-            else await DisplayAlert("Standard-Punkt", "Aktueller Standort nicht verfügbar.", "OK");
+            else await DisplayAlert(L.T("standardpunkt_titel"), L.T("standardpunkt_kein_standort"), L.T("ok"));
         }
         catch (Exception ex) { Debug.WriteLine(ex); }
         finally { StandardAufPositionBtn.IsEnabled = true; }
@@ -300,7 +316,7 @@ public partial class EinstellungenPage : ContentPage
 
     private async void OnCacheLeeren(object? sender, EventArgs e)
     {
-        bool ja = await DisplayAlert("Offline-Cache leeren", "Alle gespeicherten Kartenkacheln löschen?", "Leeren", "Abbrechen");
+        bool ja = await DisplayAlert(L.T("cache_leeren_titel"), L.T("cache_leeren_frage"), L.T("cache_leeren_btn"), L.T("abbrechen"));
         if (!ja) return;
         try
         {
@@ -316,17 +332,17 @@ public partial class EinstellungenPage : ContentPage
     {
         bool angemeldet = !Auth.Anonym && !string.IsNullOrEmpty(Auth.Email);
         StatusTitel.Text = Auth.Premium
-            ? (Auth.AlleFunktionen ? "Premium (alle Funktionen)" : "Premium")
-            : (angemeldet ? "Konto" : "Testkonto");
-        StatusZeile.Text = angemeldet ? $"Angemeldet als {Auth.Email}" : "Anonymes Testkonto (ohne Anmeldung).";
+            ? (Auth.AlleFunktionen ? L.T("konto_premium_alle") : L.T("konto_premium"))
+            : (angemeldet ? L.T("konto_titel") : L.T("konto_testkonto"));
+        StatusZeile.Text = angemeldet ? L.T("konto_status_angemeldet", Auth.Email) : L.T("konto_status_anonym");
         KontingentZeile.Text = Auth.Premium
-            ? "Unbegrenzte Routen/Suchen."
-            : $"Heute {Auth.RoutenHeute}/{Auth.GratisProTag} Gratis-Routen · {Auth.CreditsRouten} Route-Credits · {Auth.OfflineGekauft} Offline-Karten.";
+            ? L.T("konto_kontingent_unbegrenzt")
+            : L.T("konto_kontingent", Auth.RoutenHeute, Auth.GratisProTag, Auth.CreditsRouten, Auth.OfflineGekauft);
 
         AuthCard.IsVisible = !angemeldet;
         AbmeldenBtn.IsVisible = angemeldet;
         PremiumBtn.IsVisible = !Auth.Premium;
-        AuthTitel.Text = Auth.Anonym ? "Konto anlegen oder anmelden" : "Anmelden";
+        AuthTitel.Text = Auth.Anonym ? L.T("auth_titel_anlegen") : L.T("auth_titel_anmelden");
 
         // Felder stets am persistierten Profil ausrichten (nicht nur wenn leer) – sonst
         // bliebe ein veralteter/fremder Tippwert stehen und würde mitregistriert.
@@ -356,7 +372,7 @@ public partial class EinstellungenPage : ContentPage
 
     private async void OnAbmelden(object? sender, EventArgs e)
     {
-        bool ja = await DisplayAlert("Abmelden", "Du wirst abgemeldet und nutzt wieder ein anonymes Testkonto.", "Abmelden", "Abbrechen");
+        bool ja = await DisplayAlert(L.T("logout_titel"), L.T("abmelden_frage"), L.T("logout_titel"), L.T("abbrechen"));
         if (!ja) return;
         await Auth.AbmeldenAsync();
         EmailFeld.Text = "";
@@ -365,9 +381,8 @@ public partial class EinstellungenPage : ContentPage
 
     private async void OnKaufen(object? sender, EventArgs e)
     {
-        bool web = await DisplayAlert("Premium freischalten",
-            "Der In-App-Kauf folgt. Du kannst Premium vorerst auf spin1more.com (Stripe/PayPal) buchen – die Freischaltung gilt dann auch in der App.",
-            "Website öffnen", "Schließen");
+        bool web = await DisplayAlert(L.T("premium_titel"), L.T("premium_text"),
+            L.T("premium_website"), L.T("schliessen"));
         if (web) { try { await Launcher.OpenAsync("https://spin1more.com/konto/"); } catch (Exception ex) { Debug.WriteLine(ex); } }
     }
 }

@@ -12,25 +12,32 @@ public partial class KontoPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        L.Geaendert += Anzeigen;   // bei Sprachwechsel die imperativ gesetzten Status-Texte neu rendern
         await Auth.AktualisiereAsync();
         Anzeigen();
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        L.Geaendert -= Anzeigen;
     }
 
     private void Anzeigen()
     {
         bool angemeldet = !Auth.Anonym && !string.IsNullOrEmpty(Auth.Email);
         StatusTitel.Text = Auth.Premium
-            ? (Auth.AlleFunktionen ? "Premium (alle Funktionen)" : "Premium")
-            : (angemeldet ? "Konto" : "Testkonto");
-        StatusZeile.Text = angemeldet ? $"Angemeldet als {Auth.Email}"
-            : "Anonymes Testkonto (ohne Anmeldung).";
+            ? (Auth.AlleFunktionen ? L.T("konto_premium_alle") : L.T("konto_premium"))
+            : (angemeldet ? L.T("konto_titel") : L.T("konto_testkonto"));
+        StatusZeile.Text = angemeldet ? L.T("konto_status_angemeldet", Auth.Email)
+            : L.T("konto_status_anonym");
         KontingentZeile.Text = Auth.Premium
-            ? "Unbegrenzte Routen/Suchen."
-            : $"Heute {Auth.RoutenHeute}/{Auth.GratisProTag} Gratis-Routen genutzt · {Auth.CreditsRouten} Route-Credits · {Auth.OfflineGekauft} Offline-Karten.";
+            ? L.T("konto_kontingent_unbegrenzt")
+            : L.T("konto_kontingent_genutzt", Auth.RoutenHeute, Auth.GratisProTag, Auth.CreditsRouten, Auth.OfflineGekauft);
 
         AuthCard.IsVisible = !angemeldet;
         AbmeldenBtn.IsVisible = angemeldet;
-        AuthTitel.Text = Auth.Anonym ? "Konto anlegen oder anmelden" : "Anmelden";
+        AuthTitel.Text = Auth.Anonym ? L.T("auth_titel_anlegen") : L.T("auth_titel_anmelden");
     }
 
     private async void OnLogin(object? sender, EventArgs e)
@@ -56,7 +63,7 @@ public partial class KontoPage : ContentPage
 
     private async void OnAbmelden(object? sender, EventArgs e)
     {
-        bool ja = await DisplayAlert("Abmelden", "Du wirst abgemeldet und nutzt wieder ein anonymes Testkonto.", "Abmelden", "Abbrechen");
+        bool ja = await DisplayAlert(L.T("logout_titel"), L.T("abmelden_frage"), L.T("logout_titel"), L.T("abbrechen"));
         if (!ja) return;
         await Auth.AbmeldenAsync();
         Anzeigen();
@@ -65,9 +72,8 @@ public partial class KontoPage : ContentPage
     private async void OnKaufen(object? sender, EventArgs e)
     {
         // Stufe 2: In-App-Kauf (StoreKit/Play Billing). Vorerst Hinweis + Web-Kauf.
-        bool web = await DisplayAlert("Premium freischalten",
-            "Der In-App-Kauf folgt. Du kannst Premium vorerst auf spin1more.com (Stripe/PayPal) buchen – die Freischaltung gilt dann auch in der App.",
-            "Website öffnen", "Schließen");
+        bool web = await DisplayAlert(L.T("premium_titel"), L.T("premium_text"),
+            L.T("premium_website"), L.T("schliessen"));
         if (web) { try { await Launcher.OpenAsync("https://spin1more.com/konto/"); } catch { } }
     }
 }

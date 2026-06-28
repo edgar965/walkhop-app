@@ -3,9 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:mapsui="clr-namespace:Mapsui.UI.Maui;assembly=Mapsui.UI.Maui"
              xmlns:local="clr-namespace:SpinNaviApp"
+             xmlns:loc="clr-namespace:SpinNaviApp"
              x:Class="SpinNaviApp.UebersichtPage"
              Shell.NavBarIsVisible="True"
-             Title="Start">
+             Title="{loc:Translate nav_start}">
 
     <!-- Vollflächige Karte; alle Bedienelemente liegen darüber (rechte Leiste + Aufklapp-Fenster). -->
     <Grid>
@@ -76,7 +77,7 @@
                 </Grid>
 
                 <!-- Peek: Namenssuche -->
-                <SearchBar Grid.Row="1" x:Name="Suchfeld" AutomationId="osm_suchfeld" Placeholder="Nach Name suchen …"
+                <SearchBar Grid.Row="1" x:Name="Suchfeld" AutomationId="osm_suchfeld" Placeholder="{loc:Translate ue_such_placeholder}"
                            TextChanged="OnSuche" Margin="12,0,12,8" />
 
                 <!-- Aufgeklappt: Umkreis-Suche, Radius, Filter-Chips -->
@@ -84,9 +85,9 @@
                     <VerticalStackLayout Padding="14,0,14,16" Spacing="12">
 
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                            <Button Grid.Column="0" AutomationId="osm_standort" Text="📍 Standort" Clicked="OnStandort"
+                            <Button Grid.Column="0" AutomationId="osm_standort" Text="{loc:Translate ue_standort_btn}" Clicked="OnStandort"
                                     Padding="10,0" HeightRequest="42" BackgroundColor="#0d9488" TextColor="White" CornerRadius="10" FontSize="13" />
-                            <Entry Grid.Column="1" x:Name="OrtEntry" Placeholder="Ort/Adresse als Mittelpunkt" Completed="OnOrtSuche"
+                            <Entry Grid.Column="1" x:Name="OrtEntry" Placeholder="{loc:Translate ue_ort_placeholder}" Completed="OnOrtSuche"
                                    ReturnType="Search" VerticalOptions="Center" />
                             <Button Grid.Column="2" AutomationId="osm_ortsuche" Text="🔍" Clicked="OnOrtSuche"
                                     WidthRequest="42" HeightRequest="42" Padding="0" BackgroundColor="#0c4a6e" TextColor="White" CornerRadius="10" />
@@ -95,16 +96,16 @@
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
                             <HorizontalStackLayout Grid.Column="0" Spacing="2">
                                 <CheckBox x:Name="UmkreisCheck" AutomationId="osm_umkreis" CheckedChanged="OnUmkreisCheck" Color="#0d9488" />
-                                <Label Text="Umkreis-Suche" VerticalOptions="Center" TextColor="#0f172a" />
+                                <Label Text="{loc:Translate ue_umkreis}" VerticalOptions="Center" TextColor="#0f172a" />
                             </HorizontalStackLayout>
                             <HorizontalStackLayout Grid.Column="1" Spacing="2" HorizontalOptions="End">
                                 <CheckBox x:Name="BahnhofCheck" AutomationId="osm_bahnhof" CheckedChanged="OnBahnhof" Color="#0d9488" />
-                                <Label Text="🚉 Bahnhof am Start" VerticalOptions="Center" TextColor="#0f172a" />
+                                <Label Text="{loc:Translate ue_bahnhof}" VerticalOptions="Center" TextColor="#0f172a" />
                             </HorizontalStackLayout>
                         </Grid>
 
                         <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
-                            <Label Text="Radius:" VerticalOptions="Center" TextColor="#475569" FontSize="13" />
+                            <Label Text="{loc:Translate ue_radius}" VerticalOptions="Center" TextColor="#475569" FontSize="13" />
                             <HorizontalStackLayout x:Name="RadiusChips" Spacing="6" />
                             <Label x:Name="MittelpunktLabel" Text="" FontSize="12" TextColor="#94a3b8" VerticalOptions="Center" />
                         </HorizontalStackLayout>
@@ -160,18 +161,18 @@
                             <Label x:Name="DlgName" FontSize="19" FontAttributes="Bold" TextColor="#0f172a" />
                             <Label x:Name="DlgBadges" FontSize="13" TextColor="#475569" />
                             <Label x:Name="DlgBeschr" FontSize="14" TextColor="#334155" />
-                            <Button AutomationId="osm_dialog_navi" Text="🧭 Navigation starten" Clicked="OnDialogNavigieren"
+                            <Button AutomationId="osm_dialog_navi" Text="{loc:Translate ue_dlg_navi}" Clicked="OnDialogNavigieren"
                                     BackgroundColor="#0d9488" TextColor="White" CornerRadius="12" Margin="0,6,0,0" />
                             <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                <Button Grid.Column="0" AutomationId="osm_dialog_gpx" Text="⬇ GPX-Route" Clicked="OnDialogGpx"
+                                <Button Grid.Column="0" AutomationId="osm_dialog_gpx" Text="{loc:Translate ue_dlg_gpx}" Clicked="OnDialogGpx"
                                         BackgroundColor="#334155" TextColor="White" CornerRadius="12" />
-                                <Button Grid.Column="1" AutomationId="osm_dialog_details" Text="Details &amp; Termine" Clicked="OnDialogTermine"
+                                <Button Grid.Column="1" AutomationId="osm_dialog_details" Text="{loc:Translate ue_dlg_termine}" Clicked="OnDialogTermine"
                                         BackgroundColor="#334155" TextColor="White" CornerRadius="12" />
                             </Grid>
-                            <Label x:Name="DlgPoiTitel" Text="✨ Sehenswürdigkeiten am Weg" FontSize="14"
+                            <Label x:Name="DlgPoiTitel" Text="{loc:Translate ue_dlg_poi_titel}" FontSize="14"
                                    FontAttributes="Bold" TextColor="#0f172a" IsVisible="False" Margin="0,6,0,0" />
                             <VerticalStackLayout x:Name="DlgPois" Spacing="6" />
-                            <Button AutomationId="osm_dialog_zu" Text="Schließen" Clicked="OnDialogZu"
+                            <Button AutomationId="osm_dialog_zu" Text="{loc:Translate schliessen}" Clicked="OnDialogZu"
                                     BackgroundColor="#f1f5f9" TextColor="#475569" CornerRadius="12" Margin="0,6,0,0" />
                         </VerticalStackLayout>
                     </VerticalStackLayout>

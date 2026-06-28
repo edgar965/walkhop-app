@@ -45,22 +45,22 @@
         </DataTemplate>
     </Shell.MenuItemTemplate>
 
-    <FlyoutItem Title="Start" Route="start">
+    <FlyoutItem x:Name="FiStart" Title="Start" Route="start">
         <ShellContent ContentTemplate="{DataTemplate local:UebersichtPage}" Route="StartPage" />
     </FlyoutItem>
 
-    <FlyoutItem Title="Navigation" Route="navigation">
+    <FlyoutItem x:Name="FiNavigation" Title="Navigation" Route="navigation">
         <ShellContent ContentTemplate="{DataTemplate local:MainPage}" Route="MainPage" />
     </FlyoutItem>
 
-    <FlyoutItem Title="Konto" Route="konto">
+    <FlyoutItem x:Name="FiKonto" Title="Konto" Route="konto">
         <ShellContent ContentTemplate="{DataTemplate local:KontoPage}" Route="KontoPage" />
     </FlyoutItem>
 
-    <FlyoutItem Title="Einstellungen" Route="einstellungen">
+    <FlyoutItem x:Name="FiEinstellungen" Title="Einstellungen" Route="einstellungen">
         <ShellContent ContentTemplate="{DataTemplate local:EinstellungenPage}" Route="EinstellungenPage" />
     </FlyoutItem>
 
-    <MenuItem Text="Beenden" Clicked="OnLogout" />
+    <MenuItem x:Name="MiBeenden" Text="Beenden" Clicked="OnLogout" />
 
 </Shell>

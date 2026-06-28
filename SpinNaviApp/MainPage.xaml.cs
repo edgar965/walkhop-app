@@ -174,6 +174,16 @@ public partial class MainPage : ContentPage
         KompassIconAktualisieren();
         TonIconAktualisieren();
         HoeheView.Drawable = _hoehe;
+        // Code-gesetzte Platzhalter mehrsprachig vorbelegen (kein Translate-Binding, da sie zur
+        // Laufzeit mit Routeninfo überschrieben werden).
+        ZielLabel.Text = L.T("ziel");
+        HoeheInfo.Text = L.T("mp_hoehenprofil");
+        // Bei Laufzeit-Sprachwechsel die Platzhalter neu setzen, solange keine Route läuft
+        // (während aktiver Navigation tragen sie Routeninfos, die nicht überschrieben werden dürfen).
+        L.Geaendert += () => MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_navPunkte == null) { ZielLabel.Text = L.T("ziel"); HoeheInfo.Text = L.T("mp_hoehenprofil"); }
+        });
         LangdruckEinrichten();
 #if ANDROID
         WheelZoomEinrichten();
@@ -248,7 +258,7 @@ public partial class MainPage : ContentPage
         {
             _autoAufnahmeProbiert = true;
             AufnahmeStart();
-            Status("● Aufnahme läuft", autoAus: true);
+            Status(L.T("st_aufnahme_laeuft"), autoAus: true);
         }
 
         if (GeplanteTour is { } tour)   // von der Startseite übergebene Tour starten
@@ -337,7 +347,7 @@ public partial class MainPage : ContentPage
             if (tour.Start is { } st) await RouteZu(st.lat, st.lon);
             return;
         }
-        Status("Tour wird vorbereitet …");
+        Status(L.T("st_tour_vorbereiten"));
         // Echte Abbiege-Manöver entlang der GPX-Route per Map-Matching (trace.json).
         string costing = tour.Facetten.Contains("radtour") ? "bicycle" : "pedestrian";
         RouteErgebnis? erg = null;
@@ -386,7 +396,7 @@ public partial class MainPage : ContentPage
                 new GeolocationListeningRequest(GeolocationAccuracy.Best, TimeSpan.FromSeconds(1)));
             _gpsLaeuft = true;
         }
-        catch (Exception ex) { Debug.WriteLine(ex); Status("GPS nicht verfügbar", autoAus: true); }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("st_gps_nicht_verfuegbar"), autoAus: true); }
 
         // WICHTIG: Foreground-Listening liefert auf Android wegen eines 50-m-Distanzfilters erst
         // NACH spürbarer Bewegung ein Update – im Stand (Testen!) käme nie eine Position, dann
@@ -541,12 +551,13 @@ public partial class MainPage : ContentPage
     // Kontextmenü „Was möchtest du tun?" – per kurzem Tipp (Map.Info) UND per Langdruck (Android) aufrufbar.
     private async Task KontextmenueZeigen(double lat, double lon)
     {
-        var optionen = new List<string> { "🥾 Hierhin navigieren", "📍 Von hier starten", "➕ Zum Plan hinzufügen" };
+        string hierhin = L.T("ktx_hierhin"), vonHier = L.T("ktx_von_hier"), zumPlan = L.T("ktx_zum_plan");
+        var optionen = new List<string> { hierhin, vonHier, zumPlan };
         optionen.Add(Standort.EntfernungZeile(lat, lon, _letzteGeo));   // Info-Zeile vor „Abbrechen"
         // „Bereich offline laden" ist in Einstellungen → Karte umgezogen (dort als „Umgebung offline laden").
-        string wahl = await DisplayActionSheet(null, "Abbrechen", null, optionen.ToArray());
-        if (wahl == "🥾 Hierhin navigieren") await RouteZu(lat, lon);
-        else if (wahl == "📍 Von hier starten")
+        string wahl = await DisplayActionSheet(null, L.T("abbrechen"), null, optionen.ToArray());
+        if (wahl == hierhin) await RouteZu(lat, lon);
+        else if (wahl == vonHier)
         {
             // Läuft eine Navigation mit Ziel? → sofort umrouten: Route NEU ab dem geklickten
             // Punkt zum bisherigen Ziel berechnen (RouteZu nimmt _startUeberschreibung als Start).
@@ -559,10 +570,10 @@ public partial class MainPage : ContentPage
             {
                 // Keine Navigation aktiv: Startpunkt nur für die nächste Routenberechnung merken.
                 _startUeberschreibung = (lat, lon);
-                Status("Start gesetzt – Ziel antippen", autoAus: true);
+                Status(L.T("st_start_gesetzt"), autoAus: true);
             }
         }
-        else if (wahl == "➕ Zum Plan hinzufügen") { _plan.Add((lat, lon)); PlanAnzeigen(); }
+        else if (wahl == zumPlan) { _plan.Add((lat, lon)); PlanAnzeigen(); }
     }
 
     private async Task RouteZu(double zielLat, double zielLon, string? zielName = null)
@@ -570,45 +581,44 @@ public partial class MainPage : ContentPage
         var start = _startUeberschreibung ?? _letzteGeo;
         if (start == null)   // kurz auf den ersten GPS-Fix warten (Race beim Seitenwechsel/Kaltstart)
         {
-            Status("Warte auf GPS-Standort …");
+            Status(L.T("st_warte_gps"));
             for (int i = 0; i < 24 && _letzteGeo == null; i++) await Task.Delay(250);
             start = _startUeberschreibung ?? _letzteGeo;
         }
-        if (start == null) { Status("Noch kein GPS-Standort", autoAus: true); return; }
-        Status("Route wird berechnet …");
+        if (start == null) { Status(L.T("st_noch_kein_gps"), autoAus: true); return; }
+        Status(L.T("st_route_berechnet"));
         try
         {
             var opt = RouteService.CostingOptionen(Einst.Profil, Einst.Wegtyp,
                 Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche);
             var (r, alt) = await RouteService.RouteVollAsync(start.Value.lat, start.Value.lon, zielLat, zielLon,
                 Einst.Profil, opt, Einst.Locale, 2);
-            if (r == null || r.Punkte.Count < 2) { Status("Keine Route gefunden", autoAus: true); return; }
+            if (r == null || r.Punkte.Count < 2) { Status(L.T("st_keine_route"), autoAus: true); return; }
             _startUeberschreibung = null;
             _istTour = false; _tourOriginal = null; _navZiel = (zielLat, zielLon);
             _alternativen = alt; _navMinuten = r.Minuten;
             var ank = DateTime.Now.AddMinutes(r.Minuten).ToString("HH:mm");
-            NavStart(r.Punkte, r.Manoever, $"{FmtKmVon(r.Km)} · {r.Minuten:0} min", ank);
+            NavStart(r.Punkte, r.Manoever, L.T("route_zusammenfassung", FmtKmVon(r.Km), r.Minuten), ank);
             Status(null);
             _ = ZielMerkenMitName(zielLat, zielLon, zielName);   // Name ggf. per Reverse-Geocoding (Hintergrund)
             _ = Auth.AktualisiereAsync();   // Tageszähler im Konto aktualisieren
         }
         catch (PaywallException) { await Paywall(); }
-        catch (Exception ex) { Debug.WriteLine(ex); Status("Routing gerade nicht erreichbar", autoAus: true); }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("st_routing_nicht_erreichbar"), autoAus: true); }
     }
 
     private async Task Paywall(string? text = null)
     {
         Status(null);
-        text ??= $"Du hast deine {Auth.GratisProTag} Gratis-Routen für heute genutzt. " +
-                 "Mit Premium (oder Route-Credits) navigierst du weiter.";
-        bool hin = await DisplayAlert("Tageslimit erreicht", text, "Premium / Konto", "Schließen");
+        text ??= L.T("paywall_text", Auth.GratisProTag);
+        bool hin = await DisplayAlert(L.T("paywall_titel"), text, L.T("paywall_btn"), L.T("schliessen"));
         if (hin) await Shell.Current.GoToAsync("//konto");
     }
 
     // ---- gemeinsame Navigations-/Routen-Anzeige ----------------------------
     private void NavStart(List<(double lat, double lon)> punkte, List<Manoever> manoever, string infoText, string ankunft = "", bool fitKamera = true)
     {
-        if (punkte == null || punkte.Count < 2) { Status("Route ungültig", autoAus: true); return; }
+        if (punkte == null || punkte.Count < 2) { Status(L.T("st_route_ungueltig"), autoAus: true); return; }
         _navAktiv = false;   // jede frisch berechnete Route startet in der Vorschau (Start-Knopf)
         ZeichneRoute(punkte, fitKamera);
         _navPunkte = punkte;
@@ -624,7 +634,7 @@ public partial class MainPage : ContentPage
         _ = HoeheLaden(punkte);
         DistNaechstLabel.Text = "";
         NaviInfoLabel.Text = infoText;
-        ZielLabel.Text = string.IsNullOrEmpty(infoText) ? "Ziel" : infoText;
+        ZielLabel.Text = string.IsNullOrEmpty(infoText) ? L.T("ziel") : infoText;
         VorschauSummary.Text = $"{FmtZeit(_navMinuten)} · {FmtKm(_navGesamt)}";   // Vorschau-Zusammenfassung
         TabsMarkieren();
         NaviZustandAnzeigen();
@@ -711,9 +721,9 @@ public partial class MainPage : ContentPage
             if (!_zielAngesagt)
             {
                 _zielAngesagt = true;
-                if (Einst.Ton) Sprich("Du hast dein Ziel erreicht.");
+                if (Einst.Ton) Sprich(L.T("ansage_ziel_erreicht"));
                 NavigationBeenden();   // setzt selbst Status(null) – daher Meldung DANACH setzen
-                Status("🏁 Ziel erreicht", autoAus: true);
+                Status(L.T("st_ziel_erreicht"), autoAus: true);
             }
             return;
         }
@@ -740,12 +750,12 @@ public partial class MainPage : ContentPage
             // Watch-Spiegelung: Abbiege-Hinweis als (in-place) Notification → erscheint auf
             // gekoppelten Uhren (Apple Watch / Wear OS / Bluetooth-Uhren), ohne eigene Watch-App.
             string notifTxt = $"{FmtKm(distNext)}: {Saubere(_navManoever[next].Anweisung)}";
-            if (notifTxt != _letztNotifText) { _letztNotifText = notifTxt; NaviNotif.Zeige("Navigation", notifTxt); }
+            if (notifTxt != _letztNotifText) { _letztNotifText = notifTxt; NaviNotif.Zeige(L.T("notif_navigation"), notifTxt); }
             // Zweistufige Ansage: Vorab „In N Metern …" (45–160 m), dann am Manöver die Anweisung.
             if (Einst.Ton)
             {
                 if (distNext > 45 && distNext < 160 && _vorabGesprochen != next)
-                { Sprich($"In {Math.Round(distNext / 10) * 10:0} Metern: {Saubere(_navManoever[next].Anweisung)}"); _vorabGesprochen = next; }
+                { Sprich(L.T("ansage_vorab", $"{Math.Round(distNext / 10) * 10:0}", Saubere(_navManoever[next].Anweisung))); _vorabGesprochen = next; }
                 else if (distNext <= 45 && _letztGesprochen != next)
                 { Sprich(Saubere(_navManoever[next].Anweisung)); _letztGesprochen = next; }
             }
@@ -792,7 +802,7 @@ public partial class MainPage : ContentPage
                     var komb = new List<(double lat, double lon)>(r.Punkte);
                     komb.AddRange(rest);
                     await NavStartGetracet(komb, "", _ankunftText, fit: false);   // echte Manöver, ohne Kamera-Sprung
-                    Status("↻ Route neu berechnet", autoAus: true);
+                    Status(L.T("st_route_neu"), autoAus: true);
                 }
             }
             else if (_navZiel is { } z)
@@ -802,8 +812,8 @@ public partial class MainPage : ContentPage
                 {
                     _alternativen = alt; _navMinuten = r.Minuten;
                     var ank = DateTime.Now.AddMinutes(r.Minuten).ToString("HH:mm");
-                    NavStart(r.Punkte, r.Manoever, $"{FmtKmVon(r.Km)} · {r.Minuten:0} min", ank, fitKamera: false);
-                    Status("↻ Route neu berechnet", autoAus: true);
+                    NavStart(r.Punkte, r.Manoever, L.T("route_zusammenfassung", FmtKmVon(r.Km), r.Minuten), ank, fitKamera: false);
+                    Status(L.T("st_route_neu"), autoAus: true);
                 }
             }
         }
@@ -1281,7 +1291,7 @@ public partial class MainPage : ContentPage
         {
             // Noch kein GPS-Standort: sobald der erste Fix kommt, automatisch dorthin zentrieren.
             _zentrierenNaechsterFix = true;
-            Status("Warte auf GPS-Standort …", autoAus: true);
+            Status(L.T("st_warte_gps"), autoAus: true);
         }
         RotationssperreAktualisieren();   // endgültige Sperre setzen (abhängig von Fahrtrichtung/Einstellung)
         KompassIconAktualisieren();
@@ -1316,7 +1326,7 @@ public partial class MainPage : ContentPage
     {
         Einst.Ton = !Einst.Ton;
         TonIconAktualisieren();
-        if (Einst.Ton) Sprich("Sprachansagen aktiviert.");
+        if (Einst.Ton) Sprich(L.T("ansage_sprachansagen_an"));
     }
 
     private void TonIconAktualisieren()
@@ -1337,45 +1347,44 @@ public partial class MainPage : ContentPage
         var ziele = LetzteZiele();
         if (ziele.Count > 0)
         {
-            const string suchen = "🔍 Nach Name suchen …";
+            string suchen = L.T("poi_nach_name");
             var optionen = ziele.Select(z => "📍 " + z.name).Append(suchen).ToArray();
-            string wahl = await DisplayActionSheet("Wohin?", "Abbrechen", null, optionen);
-            if (string.IsNullOrEmpty(wahl) || wahl == "Abbrechen") return;
+            string wahl = await DisplayActionSheet(L.T("poi_wohin"), L.T("abbrechen"), null, optionen);
+            if (string.IsNullOrEmpty(wahl) || wahl == L.T("abbrechen")) return;
             if (wahl != suchen)
             {
                 var z = ziele.FirstOrDefault(x => "📍 " + x.name == wahl);
                 if (z.name != null) { await RouteZu(z.lat, z.lon, z.name); return; }
             }
         }
-        string q = await DisplayPromptAsync("Orte suchen", "Name eines Ortes/POI:", "Suchen", "Abbrechen", "z. B. Museum");
+        string q = await DisplayPromptAsync(L.T("poi_orte_suchen_titel"), L.T("poi_orte_suchen_msg"), L.T("poi_suchen_btn"), L.T("abbrechen"), L.T("poi_placeholder"));
         if (string.IsNullOrWhiteSpace(q)) return;
         var vp = _map.Navigator.Viewport;
         double halbB = vp.Width / 2.0 * vp.Resolution, halbH = vp.Height / 2.0 * vp.Resolution;
         var (w, s) = ZuGeo(vp.CenterX - halbB, vp.CenterY - halbH);
         var (o, n) = ZuGeo(vp.CenterX + halbB, vp.CenterY + halbH);
-        Status("Suche …");
+        Status(L.T("st_suche"));
         try
         {
             var treffer = await PoiService.SucheAsync(w, s, o, n, q);
-            if (treffer.Count == 0) { Status("Nichts im Kartenausschnitt gefunden", autoAus: true); return; }
+            if (treffer.Count == 0) { Status(L.T("st_nichts_gefunden"), autoAus: true); return; }
             Status(null);
             var namen = treffer.Take(10).Select(t => t.Name).ToArray();
-            string wahl = await DisplayActionSheet($"{treffer.Count} Treffer", "Abbrechen", null, namen);
+            string wahl = await DisplayActionSheet(L.T("poi_treffer", treffer.Count), L.T("abbrechen"), null, namen);
             var p = treffer.FirstOrDefault(t => t.Name == wahl);
             if (p == null) return;
             var (px, py) = ZuMercator(p.Lat, p.Lon);
             _folgen = false;
             _map.Navigator.CenterOnAndZoomTo(new MPoint(px, py), Aufloesung(ZentrierZoom));
             KompassIconAktualisieren();
-            if (await DisplayAlert(p.Name, "Dorthin navigieren?", "Navigieren", "Schließen"))
+            if (await DisplayAlert(p.Name, L.T("poi_dorthin_navigieren"), L.T("poi_navigieren_btn"), L.T("schliessen")))
                 await RouteZu(p.Lat, p.Lon, p.Name);
         }
         catch (PaywallException)
         {
-            await Paywall("Du hast deine Gratis-Suchen für heute genutzt. " +
-                          "Mit Premium (oder Such-Credits) suchst du unbegrenzt weiter.");
+            await Paywall(L.T("paywall_suche_text"));
         }
-        catch (Exception ex) { Debug.WriteLine(ex); Status("Suche fehlgeschlagen", autoAus: true); }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("st_suche_fehlgeschlagen"), autoAus: true); }
     }
 
     private void OnVollbild(object? sender, EventArgs e)
@@ -1402,8 +1411,7 @@ public partial class MainPage : ContentPage
                    : (Auth.Premium ? AppKontoOfflineP5 : 0) + Auth.OfflineGekauft;
         if (Einst.OfflineAnzahl >= budget)
         {
-            await Paywall("Offline-Karten sind im Premium-Abo enthalten (5 €: 3 Karten, 8 €: alle) " +
-                          "oder einzeln kaufbar (3 €). Im Konto freischalten.");
+            await Paywall(L.T("offline_paywall_text"));
             return;
         }
 
@@ -1411,15 +1419,15 @@ public partial class MainPage : ContentPage
         double halbB = vp.Width / 2.0 * vp.Resolution, halbH = vp.Height / 2.0 * vp.Resolution;
         var bereich = new MRect(vp.CenterX - halbB, vp.CenterY - halbH, vp.CenterX + halbB, vp.CenterY + halbH);
         int z = (int)Math.Round(Math.Log2(MercatorAufloesungZoom0 / vp.Resolution));
-        var prog = new Progress<(int done, int total)>(p => Status($"Offline laden … {p.done}/{p.total}"));
+        var prog = new Progress<(int done, int total)>(p => Status(L.T("offline_fortschritt", p.done, p.total)));
         try
         {
             int n = await Task.Run(() => OfflineKarte.DownloadAsync(
                 _aktiveQuelle, bereich, Math.Max(1, z), Math.Min(z + OfflineExtraZoom, MaxOsmZoom), OfflineMaxKacheln, prog));
             if (n > 0) Einst.OfflineAnzahl++;        // erfolgreich geladenen Bereich aufs Kontingent anrechnen
-            Status($"✓ {n} Kacheln offline gespeichert", autoAus: true);
+            Status(L.T("st_offline_gespeichert", n), autoAus: true);
         }
-        catch (Exception ex) { Debug.WriteLine(ex); Status("Offline-Fehler", autoAus: true); }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("st_offline_fehler"), autoAus: true); }
     }
 
     // ---- Karten-/Routing-Anwendung (Quellen-Wechsel; Steuerung jetzt in der Einstellungen-Seite) ----
@@ -1457,8 +1465,8 @@ public partial class MainPage : ContentPage
         if (_navPunkte == null) return;
         var umgekehrt = new List<(double lat, double lon)>(_navPunkte);
         umgekehrt.Reverse();
-        await NavStartGetracet(umgekehrt, "Route umgekehrt", _ankunftText, fit: true);   // korrekte Manöver rückwärts
-        Status("🔄 Route läuft jetzt andersherum", autoAus: true);
+        await NavStartGetracet(umgekehrt, L.T("mp_route_umgekehrt"), _ankunftText, fit: true);   // korrekte Manöver rückwärts
+        Status(L.T("st_route_umgekehrt"), autoAus: true);
     }
 
     // Tour-Anfahrt: zum Startpunkt der Tour …
@@ -1472,7 +1480,7 @@ public partial class MainPage : ContentPage
     // ---- Routenplan (mehrere Wegpunkte) ------------------------------------
     private void PlanAnzeigen()
     {
-        if (_plan.Count > 0) { PlanChip.IsVisible = true; PlanLos.Text = $"🧭 Plan ({_plan.Count}) – Los"; }
+        if (_plan.Count > 0) { PlanChip.IsVisible = true; PlanLos.Text = L.T("plan_los", _plan.Count); }
         else PlanChip.IsVisible = false;
     }
 
@@ -1481,7 +1489,7 @@ public partial class MainPage : ContentPage
     private async void OnPlanNavigieren(object? sender, EventArgs e)
     {
         if (_letzteGeo == null || _plan.Count == 0) return;
-        Status("Plan wird berechnet …");
+        Status(L.T("st_plan_berechnet"));
         try
         {
             // Von der Position über alle Wegpunkte routen (segmentweise verkettet).
@@ -1503,14 +1511,14 @@ public partial class MainPage : ContentPage
                 alle.AddRange(r.Punkte);
                 kmSum += r.Km; minSum += r.Minuten;
             }
-            if (alle.Count < 2) { Status("Kein Plan-Weg gefunden", autoAus: true); return; }
+            if (alle.Count < 2) { Status(L.T("st_kein_plan"), autoAus: true); return; }
             _istTour = false; _tourOriginal = null; _navZiel = alle[^1]; _alternativen.Clear(); _navMinuten = minSum;
             var ank = DateTime.Now.AddMinutes(minSum).ToString("HH:mm");
-            NavStart(alle, manAll, $"{FmtKmVon(kmSum)} · {minSum:0} min", ank);
+            NavStart(alle, manAll, L.T("route_zusammenfassung", FmtKmVon(kmSum), minSum), ank);
             _plan.Clear(); PlanAnzeigen();
             Status(null);
         }
-        catch (Exception ex) { Debug.WriteLine(ex); Status("Plan gerade nicht erreichbar", autoAus: true); }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("st_plan_nicht_erreichbar"), autoAus: true); }
     }
 
     // ---- Track-Aufnahme (lokal, GPX-Export per Teilen) ---------------------
@@ -1534,7 +1542,7 @@ public partial class MainPage : ContentPage
         try
         {
             int dauer = (int)(DateTime.Now - _aufnahmeStart).TotalSeconds;
-            AufnahmeService.SpeichereLokal(kopie, "Aufnahme " + DateTime.Now.ToString("dd.MM. HH:mm"), dauer);
+            AufnahmeService.SpeichereLokal(kopie, L.T("aufnahme_name", DateTime.Now.ToString("dd.MM. HH:mm")), dauer);
         }
         catch (Exception ex) { Debug.WriteLine(ex); }
     }
@@ -1550,7 +1558,7 @@ public partial class MainPage : ContentPage
         {
             try { name = await GeocodeService.ReverseAsync(lat, lon); } catch (Exception ex) { Debug.WriteLine(ex); }
         }
-        ZielMerken(lat, lon, string.IsNullOrEmpty(name) ? "Ziel" : name);
+        ZielMerken(lat, lon, string.IsNullOrEmpty(name) ? L.T("ziel") : name);
     }
 
     private void ZielMerken(double lat, double lon, string name)
@@ -1577,7 +1585,7 @@ public partial class MainPage : ContentPage
             using var doc = System.Text.Json.JsonDocument.Parse(roh);
             foreach (var e in doc.RootElement.EnumerateArray())
                 liste.Add((e.GetProperty("lat").GetDouble(), e.GetProperty("lon").GetDouble(),
-                    e.TryGetProperty("name", out var n) ? n.GetString() ?? "Ziel" : "Ziel"));
+                    e.TryGetProperty("name", out var n) ? n.GetString() ?? L.T("ziel") : L.T("ziel")));
         }
         catch (Exception ex) { Debug.WriteLine(ex); }
         return liste;
@@ -1596,22 +1604,22 @@ public partial class MainPage : ContentPage
     // Routet GPS → Zielpunkt und hängt den Tour-Rest an (eine durchgehende Route).
     private async Task AnfahrtUndTour(double zlat, double zlon, List<(double lat, double lon)> rest)
     {
-        if (_letzteGeo == null) { Status("Noch kein GPS-Standort", autoAus: true); return; }
-        Status("Anfahrt wird berechnet …");
+        if (_letzteGeo == null) { Status(L.T("st_noch_kein_gps"), autoAus: true); return; }
+        Status(L.T("st_anfahrt_berechnet"));
         try
         {
             var opt = RouteService.CostingOptionen(Einst.Profil, Einst.Wegtyp,
                 Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche);
             var r = await RouteService.RouteAsync(_letzteGeo.Value.lat, _letzteGeo.Value.lon, zlat, zlon,
                 Einst.Profil, opt, Einst.Locale, folge: true);
-            if (r == null || r.Punkte.Count < 2) { Status("Keine Anfahrt gefunden", autoAus: true); return; }
+            if (r == null || r.Punkte.Count < 2) { Status(L.T("st_keine_anfahrt"), autoAus: true); return; }
             var komb = new List<(double lat, double lon)>(r.Punkte);
             komb.AddRange(rest);
             var ank = DateTime.Now.AddMinutes(r.Minuten).ToString("HH:mm");
-            await NavStartGetracet(komb, "Anfahrt + Tour", ank, fit: true);   // echte Manöver der ganzen Strecke
+            await NavStartGetracet(komb, L.T("mp_anfahrt_tour"), ank, fit: true);   // echte Manöver der ganzen Strecke
             Status(null);
         }
-        catch (Exception ex) { Debug.WriteLine(ex); Status("Anfahrt gerade nicht erreichbar", autoAus: true); }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("st_anfahrt_nicht_erreichbar"), autoAus: true); }
     }
 
 #if ANDROID

@@ -32,7 +32,7 @@ public partial class StartPage : ContentPage
         catch (Exception ex)
         {
             Debug.WriteLine("Touren laden: " + ex);
-            if (LeerLabel != null) LeerLabel.Text = "Touren konnten nicht geladen werden.";
+            if (LeerLabel != null) LeerLabel.Text = L.T("sp_leer_fehler");
         }
         finally { _laedt = false; }
     }

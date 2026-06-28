@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:loc="clr-namespace:SpinNaviApp"
              x:Class="SpinNaviApp.KontoPage"
-             Title="Konto"
+             Title="{loc:Translate nav_konto}"
              BackgroundColor="#f1f5f9">
     <ScrollView>
         <VerticalStackLayout Padding="16" Spacing="14">
@@ -10,7 +11,7 @@
             <!-- Status -->
             <Border StrokeThickness="0" BackgroundColor="White" StrokeShape="RoundRectangle 14" Padding="16">
                 <VerticalStackLayout Spacing="6">
-                    <Label x:Name="StatusTitel" Text="Testkonto" FontSize="18" FontAttributes="Bold" TextColor="#0f172a" />
+                    <Label x:Name="StatusTitel" Text="{loc:Translate konto_testkonto}" FontSize="18" FontAttributes="Bold" TextColor="#0f172a" />
                     <Label x:Name="StatusZeile" FontSize="13" TextColor="#64748b" />
                     <Label x:Name="KontingentZeile" FontSize="13" TextColor="#64748b" />
                 </VerticalStackLayout>
@@ -19,37 +20,37 @@
             <!-- Anmelden / Registrieren -->
             <Border x:Name="AuthCard" StrokeThickness="0" BackgroundColor="White" StrokeShape="RoundRectangle 14" Padding="16">
                 <VerticalStackLayout Spacing="10">
-                    <Label x:Name="AuthTitel" Text="Anmelden oder Konto anlegen" FontSize="16" FontAttributes="Bold" TextColor="#0f172a" />
-                    <Label Text="Damit deine Aufnahmen und Käufe auf allen Geräten verfügbar sind."
+                    <Label x:Name="AuthTitel" Text="{loc:Translate auth_titel_anmelden_oder_anlegen}" FontSize="16" FontAttributes="Bold" TextColor="#0f172a" />
+                    <Label Text="{loc:Translate auth_sub_konto}"
                            FontSize="12" TextColor="#64748b" />
-                    <Entry x:Name="EmailFeld" Placeholder="E-Mail" Keyboard="Email" />
-                    <Entry x:Name="PasswortFeld" Placeholder="Passwort" IsPassword="True" />
+                    <Entry x:Name="EmailFeld" Placeholder="{loc:Translate feld_email}" Keyboard="Email" />
+                    <Entry x:Name="PasswortFeld" Placeholder="{loc:Translate feld_passwort}" IsPassword="True" />
                     <Label x:Name="FehlerLabel" TextColor="#e2231a" FontSize="12" IsVisible="False" />
                     <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                        <Button Grid.Column="0" Text="Anmelden" Clicked="OnLogin"
+                        <Button Grid.Column="0" Text="{loc:Translate btn_anmelden}" Clicked="OnLogin"
                                 BackgroundColor="#0d9488" TextColor="White" CornerRadius="10" />
-                        <Button Grid.Column="1" Text="Registrieren" Clicked="OnRegister"
+                        <Button Grid.Column="1" Text="{loc:Translate btn_registrieren}" Clicked="OnRegister"
                                 BackgroundColor="#334155" TextColor="White" CornerRadius="10" />
                     </Grid>
                 </VerticalStackLayout>
             </Border>
 
-            <Button x:Name="AbmeldenBtn" Text="Abmelden" Clicked="OnAbmelden" IsVisible="False"
+            <Button x:Name="AbmeldenBtn" Text="{loc:Translate btn_abmelden}" Clicked="OnAbmelden" IsVisible="False"
                     BackgroundColor="#e2231a" TextColor="White" CornerRadius="10" />
 
             <!-- Tarife -->
             <Border StrokeThickness="0" BackgroundColor="White" StrokeShape="RoundRectangle 14" Padding="16">
                 <VerticalStackLayout Spacing="8">
-                    <Label Text="Tarife" FontSize="16" FontAttributes="Bold" TextColor="#0f172a" />
-                    <Label FontSize="13" TextColor="#334155" Text="• Gratis: 2 Routen pro Tag" />
-                    <Label FontSize="13" TextColor="#334155" Text="• Einzelne Route/Suche: 1 €  ·  Paket 10: 3 €" />
-                    <Label FontSize="13" TextColor="#334155" Text="• Offline-Karte: 3 €" />
-                    <Label FontSize="13" TextColor="#334155" Text="• Premium 5 €/Monat: 3 Offline-Karten + unbegrenzt Suche/GPS" />
-                    <Label FontSize="13" TextColor="#334155" Text="• Premium 8 €/Monat: alle Karten, alle Funktionen" />
-                    <Button x:Name="KaufenBtn" Text="Premium freischalten" Clicked="OnKaufen"
+                    <Label Text="{loc:Translate konto_tarife_titel}" FontSize="16" FontAttributes="Bold" TextColor="#0f172a" />
+                    <Label FontSize="13" TextColor="#334155" Text="{loc:Translate konto_tarif_gratis}" />
+                    <Label FontSize="13" TextColor="#334155" Text="{loc:Translate konto_tarif_einzel}" />
+                    <Label FontSize="13" TextColor="#334155" Text="{loc:Translate konto_tarif_offline}" />
+                    <Label FontSize="13" TextColor="#334155" Text="{loc:Translate konto_tarif_premium5}" />
+                    <Label FontSize="13" TextColor="#334155" Text="{loc:Translate konto_tarif_premium8}" />
+                    <Button x:Name="KaufenBtn" Text="{loc:Translate btn_premium_freischalten_plain}" Clicked="OnKaufen"
                             BackgroundColor="#C8102E" TextColor="White" CornerRadius="10" Margin="0,6,0,0" />
                     <Label FontSize="11" TextColor="#94a3b8"
-                           Text="In-App-Kauf (App Store / Google Play) bzw. Stripe/PayPal auf spin1more.com." />
+                           Text="{loc:Translate konto_tarif_hinweis}" />
                 </VerticalStackLayout>
             </Border>
         </VerticalStackLayout>

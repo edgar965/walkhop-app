@@ -12,12 +12,29 @@ public partial class AppShell : Shell
 		// „Start" zeigt jetzt die OSM-Karte (UebersichtPage als Flyout-Inhalt) – keine
 		// separate uebersicht-Route mehr nötig.
 
+		// Flyout-/Menü-Titel mehrsprachig setzen (Shell-Items aktualisieren Bindings auf Indexer
+		// nicht zuverlässig live, daher imperativ + bei Sprachwechsel neu setzen).
+		TexteSetzen();
+		L.Geaendert += TexteSetzen;
+
 #if DEBUG
 		// Selbsttest (WebView-Testlauf) ist im Release gar nicht erst kompiliert (csproj).
 		// Hier zusätzlich nur für Admin sichtbar und direkt VOR „Beenden" – reaktiv auf
 		// Login/Logout (Auth-Status-Event).
 		Auth.StatusGeaendert += MenueAktualisieren;
 		MenueAktualisieren();
+#endif
+	}
+
+	private void TexteSetzen()
+	{
+		FiStart.Title = L.T("nav_start");
+		FiNavigation.Title = L.T("nav_navigation");
+		FiKonto.Title = L.T("nav_konto");
+		FiEinstellungen.Title = L.T("nav_einstellungen");
+		MiBeenden.Text = L.T("nav_beenden");
+#if DEBUG
+		if (_selbsttestItem != null) _selbsttestItem.Title = L.T("nav_selbsttest");
 #endif
 	}
 
@@ -29,7 +46,7 @@ public partial class AppShell : Shell
 		{
 			_selbsttestItem = new FlyoutItem
 			{
-				Title = "Selbsttest",
+				Title = L.T("nav_selbsttest"),
 				Route = "selbsttest",
 				Items = { new ShellContent { ContentTemplate = new DataTemplate(typeof(TestPage)), Route = "TestPage" } },
 			};
@@ -50,7 +67,7 @@ public partial class AppShell : Shell
 	private async void OnLogout(object? sender, EventArgs e)
 	{
 		FlyoutIsPresented = false;
-		bool ja = await DisplayAlert("Abmelden", "Du wirst abgemeldet (es wird wieder ein anonymes Testkonto genutzt).", "Abmelden", "Abbrechen");
+		bool ja = await DisplayAlert(L.T("logout_titel"), L.T("logout_frage"), L.T("logout_titel"), L.T("abbrechen"));
 		if (!ja) return;
 		MainPage.AktiveSitzungBeenden();
 		await Auth.AbmeldenAsync();
