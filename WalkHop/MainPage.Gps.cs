@@ -119,6 +119,7 @@ public partial class MainPage
     private void SensorenStoppen()
     {
         _gpsLaeuft = false;   // beendet die Live-Positions-Schleife
+        _breadcrumbTimer?.Stop();   // ausstehende verzögerte Breadcrumb-Zeichnung abbrechen
         try { Geolocation.Default.StopListeningForeground(); } catch (Exception ex) { Debug.WriteLine(ex); }
         Geolocation.Default.LocationChanged -= AufPosition;
         try { Compass.Default.Stop(); } catch (Exception ex) { Debug.WriteLine(ex); }
@@ -197,8 +198,12 @@ public partial class MainPage
             PositionZeichnen();
             // Breadcrumb-Neuaufbau ist O(n) → nur gedrosselt (≤ alle 2,5 s) neu zeichnen; die Punkte
             // selbst werden weiter sofort gesammelt (oben unter _breadcrumbLock), nur das Zeichnen wartet.
-            if (breadcrumbNeu && Environment.TickCount64 - _letztBreadcrumbMs > BreadcrumbRedrawMs)
-            { _letztBreadcrumbMs = Environment.TickCount64; BreadcrumbZeichnen(); }
+            if (breadcrumbNeu)
+            {
+                if (Environment.TickCount64 - _letztBreadcrumbMs > BreadcrumbRedrawMs)
+                { _letztBreadcrumbMs = Environment.TickCount64; _breadcrumbTimer?.Stop(); BreadcrumbZeichnen(); }
+                else BreadcrumbNachziehen();   // gedrosselt übersprungen → verzögert nachzeichnen (letztes Segment nicht verlieren)
+            }
             double kurs = _kompassHatWert ? _heading : _gpsKurs;   // ohne Kompass-HW (N55): GPS-Fahrtrichtung
             // Route-VORSCHAU (Route liegt, aber Navigation noch nicht gestartet): die ganze Route bleibt
             // gefittet stehen – NICHT auf die Position folgen/zoomen/drehen (sonst rückt das Ziel aus dem Bild).
@@ -282,6 +287,22 @@ public partial class MainPage
     {
         if (_breadcrumbLayer.Features.Any())
         { _breadcrumbLayer.Features = new List<IFeature>(); _breadcrumbLayer.DataHasChanged(); }
+    }
+
+    // Ein gedrosselt übersprungenes Segment einmal verzögert nachzeichnen – so erscheint das letzte Stück
+    // der gewanderten Route auch, wenn der Nutzer stehen bleibt oder die Seite kurz nach dem Punkt verlässt.
+    private void BreadcrumbNachziehen()
+    {
+        if (_breadcrumbTimer == null)
+        {
+            _breadcrumbTimer = Dispatcher.CreateTimer();
+            _breadcrumbTimer.Interval = TimeSpan.FromMilliseconds(BreadcrumbRedrawMs + 200);
+            _breadcrumbTimer.IsRepeating = false;
+            _breadcrumbTimer.Tick += (_, _) =>
+            { if (_seiteLebt) { _letztBreadcrumbMs = Environment.TickCount64; BreadcrumbZeichnen(); } };
+        }
+        _breadcrumbTimer.Stop();
+        _breadcrumbTimer.Start();
     }
 
     // ---- Track-Aufnahme (lokal, GPX-Export per Teilen) ---------------------

@@ -50,19 +50,29 @@ internal static class Protokoll
         catch { return "Gerät unbekannt"; }
     }
 
-    /// <summary>Schreibt eine Log-Zeile (Zeitstempel + Kategorie + Text). Nie werfend.</summary>
+    /// <summary>Schreibt eine Log-Zeile (Zeitstempel + Kategorie + Text). Nie werfend.
+    /// Das Anhängen bleibt synchron (billig, und der Crash-Handler muss VOR dem Absturz schreiben); nur die
+    /// seltene Rotation (ganze Datei umschreiben) läuft nachgelagert, damit sie den UI-Thread nicht blockiert.</summary>
     internal static void Schreib(string kategorie, string text)
     {
         try
         {
             string zeile = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} [{kategorie}] {text}\n";
+            bool ueberlauf;
             lock (_sperre)
             {
                 File.AppendAllText(Pfad, zeile, Encoding.UTF8);
-                RotiereWennNoetig();
+                ueberlauf = new FileInfo(Pfad).Length > MaxBytes;
             }
+            if (ueberlauf) Task.Run(RotiereSicher);   // Rotation nicht auf dem (evtl. UI-)Thread
         }
         catch (Exception e) { System.Diagnostics.Debug.WriteLine(e); }   // Logging darf NIE werfen
+    }
+
+    private static void RotiereSicher()
+    {
+        try { lock (_sperre) RotiereWennNoetig(); }
+        catch (Exception e) { System.Diagnostics.Debug.WriteLine(e); }
     }
 
     private static void RotiereWennNoetig()

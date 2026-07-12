@@ -61,6 +61,7 @@ public partial class MainPage : ContentPage
     // alle 2,5 s neu zeichnen – die verzögerte Spur HINTER dem Nutzer ist visuell nicht wahrnehmbar.
     private long _letztBreadcrumbMs = -100000;
     private const long BreadcrumbRedrawMs = 2500;
+    private IDispatcherTimer? _breadcrumbTimer;   // zeichnet ein gedrosselt übersprungenes Segment verzögert nach
     // Gruppen-Position: eigene Live-Position teilen + Mitglieder als Marker zeigen (Code-basiert).
     private MemoryLayer _gruppeLayer = null!;
     private string _gruppeCode = "";              // aktiver Gruppen-Code (leer = nicht in einer Gruppe)

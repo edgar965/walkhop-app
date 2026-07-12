@@ -21,13 +21,9 @@ public partial class MainPage
     private const string VorschlagSchnellHex = "#7c3aed";   // violett – schnellste
     private const string VorschlagMittelHex = "#f59e0b";    // orange – Mittelding
 
-    private sealed record Vorschlag(RouteErgebnis Route, string FarbeHex, string Label, string Wegtyp, int Offroad);
+    private sealed record Vorschlag(RouteErgebnis Route, string FarbeHex, string Label);
     private List<Vorschlag> _vorschlaege = new();
     private int _vorschlagWahl;
-    // Costing der GEWÄHLTEN Variante – der Reroute nutzt es, damit die Fahrt ihren Charakter behält
-    // (z. B. „Schnellste" bleibt schnell). null = Einstellungs-Defaults (Tour/Plan/keine Variante).
-    private int? _navOffroad;
-    private string? _navWegtyp;
 
     /// <summary>Baut die Vorschlagsliste aus Hauptroute + ECHTEN Alternativen (Valhalla „alternates"):
     /// „Empfohlen" (blau) + bis zu zwei topologisch verschiedene Alternativen (violett/orange), Doubletten
@@ -37,14 +33,14 @@ public partial class MainPage
     {
         var liste = new List<Vorschlag>
         {
-            new(haupt, RouteFarbeHex, L.T("vorschlag_einst"), Einst.Wegtyp, Einst.OffroadProzent),
+            new(haupt, RouteFarbeHex, L.T("vorschlag_einst")),
         };
         string[] farben = { VorschlagSchnellHex, VorschlagMittelHex };   // violett, orange für die Alternativen
         foreach (var a in alternativen)
         {
             if (liste.Count >= 3) break;
             if (a.Punkte.Count < 2 || liste.Any(v => NavGeo.RoutenAehnlich(v.Route, a))) continue;   // Doublette überspringen
-            liste.Add(new Vorschlag(a, farben[liste.Count - 1], L.T("vorschlag_alt"), Einst.Wegtyp, Einst.OffroadProzent));
+            liste.Add(new Vorschlag(a, farben[liste.Count - 1], L.T("vorschlag_alt")));
         }
         return liste;
     }
@@ -56,7 +52,6 @@ public partial class MainPage
         if (i < 0 || i >= _vorschlaege.Count) return;
         _vorschlagWahl = i;
         var v = _vorschlaege[i];
-        _navOffroad = v.Offroad; _navWegtyp = v.Wegtyp;   // Reroute soll den Charakter der gewählten Variante behalten
         _navMinuten = v.Route.Minuten;
         var ank = DateTime.Now.AddMinutes(v.Route.Minuten).ToString("HH:mm");
         NavStart(v.Route.Punkte, v.Route.Manoever,

@@ -116,13 +116,7 @@ public partial class MainPage
         // vorschlagModus: mehrere farbige Varianten zeichnen (gewählte hervorgehoben). Jeder ANDERE Flow
         // (Tour, Plan, Umkehr, Reroute …) verwirft alte Vorschläge und zeichnet die eine Route normal.
         if (vorschlagModus) VorschlaegeZeichnen(fitKamera);
-        else
-        {
-            // Frischer Nicht-Varianten-Flow (kein Reroute-im-Lauf) → Reroute nutzt wieder die Einstellungen.
-            if (!imLauf) { _navOffroad = null; _navWegtyp = null; }
-            VorschlaegeVerwerfen();
-            ZeichneRoute(punkte, fitKamera);
-        }
+        else { VorschlaegeVerwerfen(); ZeichneRoute(punkte, fitKamera); }
         _navPunkte = punkte;
         _navKum = NavGeo.Kumulativ(punkte);
         _navManoever = manoever;
@@ -312,11 +306,9 @@ public partial class MainPage
         Meldung.Notiz("NAV", $"Reroute start (istTour={_istTour})");
         try
         {
-            // Reroute mit dem Costing der GEWÄHLTEN Variante (falls gesetzt), sonst den Einstellungen –
-            // so behält z. B. „Schnellste" auch nach dem Umrouten ihren Charakter.
-            var opt = RouteService.CostingOptionen(Einst.Profil, _navWegtyp ?? Einst.Wegtyp,
+            var opt = RouteService.CostingOptionen(Einst.Profil, Einst.Wegtyp,
                 Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche,
-                _navOffroad ?? Einst.OffroadProzent);
+                Einst.OffroadProzent);
             if (_istTour && _tourOriginal != null)
             {
                 var kum = NavGeo.Kumulativ(_tourOriginal);
@@ -510,7 +502,6 @@ public partial class MainPage
         _letztNotifText = ""; NaviNotif.Aus();   // Watch-Hinweis entfernen
         _alternativen.Clear(); AltChip.IsVisible = false;
         VorschlaegeVerwerfen();   // Routenvorschläge + Chips verwerfen
-        _navOffroad = null; _navWegtyp = null;   // Varianten-Costing zurücksetzen (nächste Navigation = Einstellungen)
         _navAktiv = false;
         _routeLayer.Features = new List<IFeature>();
         _routeLayer.DataHasChanged();
