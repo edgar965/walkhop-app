@@ -10,6 +10,7 @@ public static class MauiProgram
 {
 	public static MauiApp CreateMauiApp()
 	{
+		Protokoll.Registrieren();   // Logging/Crash-Handler sicher initialisieren (ModuleInitializer ist auf Android unzuverlässig)
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()

@@ -80,6 +80,8 @@ public partial class MainPage : ContentPage
     private MPoint? _letztePos;
     private (double lat, double lon)? _letzteGeo;
     private (double lat, double lon)? _startUeberschreibung;   // „Von hier starten"
+    private (double lat, double lon)? _navStartGeo;            // Position, aus der die Vorschau-Route berechnet wurde (nur bei GPS-Start)
+    private long _letztVorschauNeuMs = -100000;               // Drosselung der Vorschau-Neuberechnung bei Standort-Korrektur
     private double _heading;
     private bool _kompassHatWert;     // erst nach der ersten Kompass-Lesung true (sonst _heading == 0)
     private double _gpsKurs;          // Fahrtrichtung aus GPS (Fallback ohne Kompass)

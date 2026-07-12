@@ -20,10 +20,15 @@ internal static class Protokoll
     private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(25) };
 
     internal static string Pfad => Path.Combine(FileSystem.AppDataDirectory, "walkhop.log");
+    private static bool _registriert;
 
+    // [ModuleInitializer] läuft auf Android/FastDev NICHT zuverlässig → zusätzlich explizit aus MauiProgram
+    // aufgerufen. Der Guard macht die Registrierung idempotent (kein doppeltes Anhängen der Crash-Handler).
     [ModuleInitializer]
     internal static void Registrieren()
     {
+        if (_registriert) return;
+        _registriert = true;
         // Jeder über Meldung gemeldete Fehler landet zusätzlich im Protokoll.
         Meldung.Protokollierer = (kontext, ex) =>
             Schreib("FEHLER", ex == null ? kontext : $"{kontext} — {ex.GetType().Name}: {ex.Message}\n{ex}");

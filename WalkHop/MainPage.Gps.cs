@@ -179,9 +179,9 @@ public partial class MainPage
             if (_breadcrumbTag != DateTime.Today) { _breadcrumb.Clear(); _breadcrumbTag = DateTime.Today; }
             double sprung = _breadcrumb.Count == 0 ? 0
                 : NavGeo.Haversine(_breadcrumb[^1].lat, _breadcrumb[^1].lon, loc.Latitude, loc.Longitude);
-            // Riesensprung (> 2 km) zwischen zwei Fixes = Lücke/Glitch (App pausiert, woanders fortgesetzt):
-            // NICHT als Linie verbinden – die Spur ab hier frisch beginnen (keine Linie quer über die Karte).
-            if (sprung > 2000) _breadcrumb.Clear();
+            // Sprung > 150 m zwischen zwei Fixes = Rekalibrierung/Lücke (nicht echtes Gehen): NICHT als Linie
+            // verbinden (sonst die „graue Linie" quer über die Karte) – die Spur ab hier frisch beginnen.
+            if (GpsFilter.SpurTrennen(sprung)) _breadcrumb.Clear();
             if (_breadcrumb.Count == 0 || sprung > 8)
             {
                 _breadcrumb.Add((loc.Latitude, loc.Longitude));
@@ -218,6 +218,16 @@ public partial class MainPage
             else if (_folgen && KameraFrei && !inVorschau) _map.Navigator.CenterOn(_letztePos);
             // Kompass-Modus OHNE Kompass-Hardware: Karte in GPS-Fahrtrichtung drehen (greift nur bei Bewegung).
             if (_fahrtrichtung && !_kompassHatWert && KameraFrei && !inVorschau) _map.Navigator.RotateTo(-_gpsKurs);
+            // Standort in der VORSCHAU deutlich korrigiert (z. B. GPS rekalibriert nach Kaltstart) → Route
+            // NEU vom korrigierten Standort berechnen; sonst startet die Vorschau-Route weiter am falschen Punkt.
+            if (inVorschau && _startUeberschreibung == null && _navStartGeo is { } sg && _navZiel is { } ziel
+                && Environment.TickCount64 - _letztVorschauNeuMs > 5000
+                && GpsFilter.VorschauNeuBerechnen(NavGeo.Haversine(sg.lat, sg.lon, loc.Latitude, loc.Longitude)))
+            {
+                _letztVorschauNeuMs = Environment.TickCount64;
+                Meldung.Notiz("NAV", "Standort in Vorschau korrigiert → Route neu berechnen");
+                _ = RouteZu(ziel.lat, ziel.lon);
+            }
             if (_navPunkte != null) AktualisiereNav(loc.Latitude, loc.Longitude);
         });
     }

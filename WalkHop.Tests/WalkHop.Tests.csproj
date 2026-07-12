@@ -18,6 +18,7 @@
     <!-- App-Logik OHNE MAUI/Mapsui mittesten: nur die reinen Klassen einlinken. -->
     <!-- Meldung ist bewusst MAUI-frei (nur Delegaten) → von den getesteten Services aufrufbar. -->
     <Compile Include="..\WalkHop\Services\Meldung.cs" />
+    <Compile Include="..\WalkHop\Services\GpsFilter.cs" />
     <Compile Include="..\WalkHop\Services\Polyline.cs" />
     <Compile Include="..\WalkHop\Services\RouteService.cs" />
     <Compile Include="..\WalkHop\Services\NavGeo.cs" />

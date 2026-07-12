@@ -62,6 +62,9 @@ public partial class MainPage
             start = (Einst.StandardLat, Einst.StandardLng);
             standardStart = true;
         }
+        // Nur eine GPS-basierte Vorschau darf sich bei Standort-Korrektur selbst neu berechnen
+        // (nicht bei „von hier" oder Standard-Punkt – die sind bewusst gesetzt).
+        bool gpsStart = _startUeberschreibung == null && !standardStart;
         Meldung.Notiz("NAV", $"RouteZu Start={start.Value.lat:F5},{start.Value.lon:F5} override={_startUeberschreibung != null} standard={standardStart} Ziel={zielLat:F5},{zielLon:F5}");
         Status(standardStart
             ? L.T("st_start_standardpunkt", Standort.StandardnameAnzeige(Einst.StandardName))
@@ -79,6 +82,7 @@ public partial class MainPage
             if (haupt == null || haupt.Punkte.Count < 2) { Status(L.T("st_keine_route"), autoAus: true); return; }
             _startUeberschreibung = null;
             _istTour = false; _tourOriginal = null; _navZiel = (zielLat, zielLon);
+            _navStartGeo = gpsStart ? start : null;   // Basis für die Vorschau-Neuberechnung bei GPS-Korrektur
             _alternativen = new();          // Vorschläge ersetzen die früheren (grauen) Alternativen
             _vorschlaege = VorschlaegeAusRoute(haupt, alternativen);
             Meldung.Notiz("NAV", $"Vorschläge: {_vorschlaege.Count} (Haupt {haupt.Km:0.0} km, {alternativen.Count} Alternativen)");
@@ -502,6 +506,7 @@ public partial class MainPage
         _letztNotifText = ""; NaviNotif.Aus();   // Watch-Hinweis entfernen
         _alternativen.Clear(); AltChip.IsVisible = false;
         VorschlaegeVerwerfen();   // Routenvorschläge + Chips verwerfen
+        _navStartGeo = null;      // keine Vorschau-Neuberechnung mehr
         _navAktiv = false;
         _routeLayer.Features = new List<IFeature>();
         _routeLayer.DataHasChanged();
