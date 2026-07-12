@@ -47,20 +47,43 @@ public static class RouteService
     }
 
     /// <summary>costing_options wie in der Web-Navi (costingOptionen()) – flacher Dict,
-    /// den der Server unter dem costing-Schlüssel verschachtelt.</summary>
+    /// den der Server unter dem costing-Schlüssel verschachtelt.
+    /// <paramref name="offroadProzent"/> (0–100, Default 0) ist die Offroad-Bereitschaft: höher →
+    /// bevorzugt Wald-/Pfad-/kleine Radwege (mehr Tracks, weniger Straßen), nimmt dafür Umwege in Kauf.
+    /// Valhalla kennt kein hartes Umweg-Budget – der Wert wirkt als Bevorzugungs-Stärke.</summary>
     public static Dictionary<string, object> CostingOptionen(
-        string costing, string wegtyp, bool autobahn, bool unbefestigt, bool schlechteOberflaeche)
+        string costing, string wegtyp, bool autobahn, bool unbefestigt, bool schlechteOberflaeche,
+        int offroadProzent = 0)
     {
+        double b = Math.Clamp(offroadProzent / 100.0, 0, 1);   // Offroad-Bias 0..1
         if (costing == "auto")
             return new() { ["use_highways"] = autobahn ? 0.25 : 1.0, ["use_tracks"] = unbefestigt ? 0.0 : 0.5 };
         if (costing == "pedestrian")
         {
-            if (wegtyp == "natur") return new() { ["use_tracks"] = 1.0, ["walkway_factor"] = 0.5 };
-            if (wegtyp == "fest") return new() { ["use_tracks"] = 0.0, ["walkway_factor"] = 1.0 };
-            return new();                       // neutral
+            // Basis nach Wegtyp; der Offroad-Bias hebt zusätzlich die Bereitschaft für Pfade/Tracks –
+            // NICHT bei „fest" (dort will der Nutzer bewusst befestigte Wege).
+            Dictionary<string, object> d = wegtyp switch
+            {
+                "natur" => new() { ["use_tracks"] = 1.0, ["walkway_factor"] = 0.5 },
+                "fest" => new() { ["use_tracks"] = 0.0, ["walkway_factor"] = 1.0 },
+                _ => new(),                     // neutral
+            };
+            if (b > 0 && wegtyp != "fest")
+            {
+                double basisTracks = d.TryGetValue("use_tracks", out var ut) ? Convert.ToDouble(ut) : 0.5;
+                double basisWf = d.TryGetValue("walkway_factor", out var wf) ? Convert.ToDouble(wf) : 1.0;
+                d["use_tracks"] = Math.Clamp(basisTracks + b, 0, 1);          // mehr Tracks/Feldwege
+                d["walkway_factor"] = Math.Clamp(basisWf - 0.5 * b, 0.3, 1);  // Fuß-/Wanderwege bevorzugen
+            }
+            return d;
         }
-        return new() { ["use_roads"] = 0.4, ["bicycle_type"] = "Hybrid",
-                       ["avoid_bad_surfaces"] = schlechteOberflaeche ? 0.8 : 0.0 };   // bicycle
+        // bicycle: der Offroad-Bias senkt use_roads (Straßen meiden → Radwege/kleine Wege bevorzugen).
+        return new()
+        {
+            ["use_roads"] = b > 0 ? Math.Clamp(0.4 * (1 - b), 0, 1) : 0.4,
+            ["bicycle_type"] = "Hybrid",
+            ["avoid_bad_surfaces"] = schlechteOberflaeche ? 0.8 : 0.0,
+        };
     }
 
     /// <summary>Baut den Request-Body (separat → unit-testbar ohne Netz).</summary>

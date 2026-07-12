@@ -58,16 +58,14 @@ public partial class MainPage
         Status(L.T("st_route_berechnet"));
         try
         {
-            var opt = RouteService.CostingOptionen(Einst.Profil, Einst.Wegtyp,
-                Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche);
-            var (r, alt) = await RouteService.RouteVollAsync(start.Value.lat, start.Value.lon, zielLat, zielLon,
-                Einst.Profil, opt, Einst.NaviLocale, 2);
-            if (r == null || r.Punkte.Count < 2) { Status(L.T("st_keine_route"), autoAus: true); return; }
+            // Drei Varianten (Einstellungen/blau, schnellste/violett, Mittelding/orange) als Vorschläge.
+            var vorschlaege = await BerechneVorschlaege(start.Value.lat, start.Value.lon, zielLat, zielLon);
+            if (vorschlaege.Count == 0) { Status(L.T("st_keine_route"), autoAus: true); return; }
             _startUeberschreibung = null;
             _istTour = false; _tourOriginal = null; _navZiel = (zielLat, zielLon);
-            _alternativen = alt; _navMinuten = r.Minuten;
-            var ank = DateTime.Now.AddMinutes(r.Minuten).ToString("HH:mm");
-            NavStart(r.Punkte, r.Manoever, L.T("route_zusammenfassung", FmtKmVon(r.Km), r.Minuten), ank);
+            _alternativen = new();          // Vorschläge ersetzen die früheren (grauen) Alternativen
+            _vorschlaege = vorschlaege;
+            VorschlagWaehlen(0, fit: true);  // ersten Vorschlag (Einstellungen/blau) als Vorschau aktivieren
             Status(null);
             _ = ZielMerkenMitName(zielLat, zielLon, zielName);   // Name ggf. per Reverse-Geocoding (Hintergrund)
             _ = Auth.AktualisiereAsync();   // Tageszähler im Konto aktualisieren
@@ -85,11 +83,19 @@ public partial class MainPage
     }
 
     // ---- gemeinsame Navigations-/Routen-Anzeige ----------------------------
-    private void NavStart(List<(double lat, double lon)> punkte, List<Manoever> manoever, string infoText, string ankunft = "", bool fitKamera = true)
+    private void NavStart(List<(double lat, double lon)> punkte, List<Manoever> manoever, string infoText, string ankunft = "", bool fitKamera = true, bool imLauf = false, bool vorschlagModus = false)
     {
         if (punkte == null || punkte.Count < 2) { Status(L.T("st_route_ungueltig"), autoAus: true); return; }
-        _navAktiv = false;   // jede frisch berechnete Route startet in der Vorschau (Start-Knopf)
-        ZeichneRoute(punkte, fitKamera);
+        // Frisch berechnete Route → Vorschau (Start-Knopf). Ein Reroute WÄHREND der aktiven Navigation
+        // (imLauf) darf NICHT in die Vorschau zurückwerfen – sonst poppt der „Start"-Knopf auf, die
+        // Turn-by-Turn-Führung stoppt und es wird nicht mehr automatisch neu geroutet. Dann bleibt
+        // _navAktiv==true und die Route wird nur ausgetauscht (mit frischer Reroute-Schonfrist).
+        if (!imLauf) _navAktiv = false;
+        else _navStartMs = Environment.TickCount64;
+        // vorschlagModus: mehrere farbige Varianten zeichnen (gewählte hervorgehoben). Jeder ANDERE Flow
+        // (Tour, Plan, Umkehr, Reroute …) verwirft alte Vorschläge und zeichnet die eine Route normal.
+        if (vorschlagModus) VorschlaegeZeichnen(fitKamera);
+        else { VorschlaegeVerwerfen(); ZeichneRoute(punkte, fitKamera); }
         _navPunkte = punkte;
         _navKum = NavGeo.Kumulativ(punkte);
         _navManoever = manoever;
@@ -150,6 +156,8 @@ public partial class MainPage
     {
         if (_navPunkte == null || _navPunkte.Count < 2) return;
         _navAktiv = true;
+        // Ab Start nur noch die gewählte Route (normal blau) zeigen – die anderen Vorschläge verwerfen.
+        if (_vorschlaege.Count > 0) { VorschlaegeVerwerfen(); ZeichneRoute(_navPunkte, fitKamera: false); }
         _navStartMs = Environment.TickCount64;   // Schonfrist: direkt nach Start/Reroute nicht sofort wieder umrouten
         _zentrierenNaechsterFix = false;   // beim Start die per fitKamera gefittete GANZE Route NICHT durch
                                            // Auto-Zoom auf die Position überschreiben (sonst nur ein Bruchteil sichtbar);
@@ -273,7 +281,8 @@ public partial class MainPage
         try
         {
             var opt = RouteService.CostingOptionen(Einst.Profil, Einst.Wegtyp,
-                Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche);
+                Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche,
+                Einst.OffroadProzent);
             if (_istTour && _tourOriginal != null)
             {
                 var kum = NavGeo.Kumulativ(_tourOriginal);
@@ -286,8 +295,8 @@ public partial class MainPage
                 {
                     var komb = new List<(double lat, double lon)>(r.Punkte);
                     komb.AddRange(rest);
-                    await NavStartGetracet(komb, "", _ankunftText, fit: false);   // echte Manöver, ohne Kamera-Sprung
-                    if (_seiteLebt) NaviAktivieren();   // Reroute läuft WÄHREND aktiver Navigation → aktiv bleiben (nicht zurück in die „Start"-Vorschau)
+                    // imLauf: Route im Lauf austauschen, OHNE in die „Start"-Vorschau zu fallen (bleibt aktiv).
+                    await NavStartGetracet(komb, "", _ankunftText, fit: false, imLauf: true);
                     Status(L.T("st_route_neu"), autoAus: true);
                     if (Einst.Benachrichtigungstoene) NaviNotif.Signalton();   // Hinweis-Ton bei „Route neu"
                 }
@@ -299,8 +308,8 @@ public partial class MainPage
                 {
                     _alternativen = alt; _navMinuten = r.Minuten;
                     var ank = DateTime.Now.AddMinutes(r.Minuten).ToString("HH:mm");
-                    NavStart(r.Punkte, r.Manoever, L.T("route_zusammenfassung", FmtKmVon(r.Km), r.Minuten), ank, fitKamera: false);
-                    if (_seiteLebt) NaviAktivieren();   // Reroute läuft WÄHREND aktiver Navigation → aktiv bleiben (nicht zurück in die „Start"-Vorschau)
+                    // imLauf: Route im Lauf austauschen, OHNE in die „Start"-Vorschau zu fallen (bleibt aktiv).
+                    NavStart(r.Punkte, r.Manoever, L.T("route_zusammenfassung", FmtKmVon(r.Km), r.Minuten), ank, fitKamera: false, imLauf: true);
                     Status(L.T("st_route_neu"), autoAus: true);
                     if (Einst.Benachrichtigungstoene) NaviNotif.Signalton();   // Hinweis-Ton bei „Route neu"
                 }
@@ -313,8 +322,9 @@ public partial class MainPage
     // Valhalla sagt bei Rad „Radeln" – wie die Web-Navi auf „Fahren" glätten.
     private static string Saubere(string anw) => anw.Replace("Radeln", "Fahren").Replace("radeln", "fahren");
 
-    /// <summary>Setzt eine Geometrie als Tour-Route, holt echte Manöver per Trace.</summary>
-    private async Task NavStartGetracet(List<(double lat, double lon)> punkte, string info, string ank, bool fit)
+    /// <summary>Setzt eine Geometrie als Tour-Route, holt echte Manöver per Trace.
+    /// <paramref name="imLauf"/>: Reroute während aktiver Navigation → aktiv bleiben (keine Vorschau).</summary>
+    private async Task NavStartGetracet(List<(double lat, double lon)> punkte, string info, string ank, bool fit, bool imLauf = false)
     {
         string costing = Einst.Profil is "auto" or "bicycle" ? Einst.Profil : "pedestrian";
         RouteErgebnis? tr = null;
@@ -324,7 +334,7 @@ public partial class MainPage
         var man = tr?.Manoever ?? new List<Manoever>();
         _istTour = true; _tourOriginal = pts; _navZiel = pts[^1]; _alternativen.Clear();
         _navMinuten = tr?.Minuten ?? _navMinuten;
-        NavStart(pts, man, info, ank, fit);
+        NavStart(pts, man, info, ank, fit, imLauf);
     }
 
     private async Task HoeheLaden(List<(double lat, double lon)> pts)
@@ -464,6 +474,7 @@ public partial class MainPage
         _letztGesprochen = -1; _zielAngesagt = false; _tonManoever = -1; _startUeberschreibung = null;
         _letztNotifText = ""; NaviNotif.Aus();   // Watch-Hinweis entfernen
         _alternativen.Clear(); AltChip.IsVisible = false;
+        VorschlaegeVerwerfen();   // Routenvorschläge + Chips verwerfen
         _navAktiv = false;
         _routeLayer.Features = new List<IFeature>();
         _routeLayer.DataHasChanged();
@@ -529,7 +540,8 @@ public partial class MainPage
             var stationen = new List<(double lat, double lon)> { _letzteGeo.Value };
             stationen.AddRange(_plan);
             var opt = RouteService.CostingOptionen(Einst.Profil, Einst.Wegtyp,
-                Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche);
+                Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche,
+                Einst.OffroadProzent);
             var alle = new List<(double lat, double lon)>();
             var manAll = new List<Manoever>();
             double kmSum = 0, minSum = 0;
@@ -613,7 +625,8 @@ public partial class MainPage
         try
         {
             var opt = RouteService.CostingOptionen(Einst.Profil, Einst.Wegtyp,
-                Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche);
+                Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche,
+                Einst.OffroadProzent);
             var r = await RouteService.RouteAsync(_letzteGeo.Value.lat, _letzteGeo.Value.lon, zlat, zlon,
                 Einst.Profil, opt, Einst.NaviLocale, folge: true);
             if (r == null || r.Punkte.Count < 2) { Status(L.T("st_keine_anfahrt"), autoAus: true); return; }

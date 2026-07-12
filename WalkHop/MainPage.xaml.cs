@@ -34,6 +34,9 @@ public partial class MainPage : ContentPage
     private const double VorausMin = 90;        // Grund-Länge des Richtungspfeils (m)
     private const double VorausAbbieg = 150;    // Abbiegung <= so nah → Pfeil bis dahin zeigen
     private const double VorausUeber = 20;      // …und ein Stück darüber hinaus
+    // Farbe der GPS-Route (blau). Der Richtungspfeil (Schaft + Spitze) nutzt EXAKT dieselbe Farbe,
+    // damit der Abbiege-Pfeil wie die Route wirkt (früher lila – auf Wunsch angeglichen).
+    private const string RouteFarbeHex = "#1d6fe0";
 
     private static readonly Microsoft.Maui.Graphics.Color Dunkel = Microsoft.Maui.Graphics.Color.FromArgb("#0f172a");
     private static readonly Microsoft.Maui.Graphics.Color Weiss = Microsoft.Maui.Graphics.Colors.White;

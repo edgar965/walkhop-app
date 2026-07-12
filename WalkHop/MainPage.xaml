@@ -181,6 +181,8 @@
                                         Padding="12,0" VerticalOptions="Fill" />
                             </Grid>
                             <Label x:Name="VorschauSummary" Text="–" FontSize="19" FontAttributes="Bold" TextColor="#0f172a" HorizontalOptions="Center" />
+                            <!-- Routenvorschläge (Google-Stil): farbige Varianten, antippbar; nur in der Vorschau bei >1 Variante -->
+                            <FlexLayout x:Name="VorschlagChips" IsVisible="False" Wrap="Wrap" JustifyContent="Center" AlignItems="Center" />
                             <Border BackgroundColor="#f8fafc" StrokeThickness="0" StrokeShape="RoundRectangle 12" Padding="14,10">
                                 <VerticalStackLayout Spacing="0">
                                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">

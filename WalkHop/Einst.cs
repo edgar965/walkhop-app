@@ -220,6 +220,33 @@ public static class Einst
         set => Preferences.Set("erstkonfig_erledigt", value);
     }
 
+    /// <summary>Zurückgelegten Weg („gewanderte Route") als Spur auf der Karte anzeigen (Default an).
+    /// (Wirksam: <see cref="MainPage"/> zeichnet die gesammelte GPS-Spur – die Brotkrumen-Linie – in
+    /// <see cref="GewanderteFarbe"/>; aus → die Ebene bleibt leer.)</summary>
+    public static bool GewanderteAnzeigen
+    {
+        get => Preferences.Get("gewanderte_anzeigen", true);
+        set => Preferences.Set("gewanderte_anzeigen", value);
+    }
+
+    /// <summary>Farbe der gewanderten Route (Hex, z. B. „#6b7280"). Default: Grau.</summary>
+    public static string GewanderteFarbe
+    {
+        get => Preferences.Get("gewanderte_farbe", "#6b7280");
+        set => Preferences.Set("gewanderte_farbe", value);
+    }
+
+    /// <summary>Offroad-Bereitschaft in Prozent (0–100): wie stark die Routenberechnung Umwege in Kauf
+    /// nimmt, um Wald-/kleine (Rad-)Wege statt der direktesten Strecke zu bevorzugen. Default 30 %.
+    /// (Wirksam: fließt in <see cref="RouteService.CostingOptionen"/> als Bevorzugung von Pfaden/Tracks
+    /// bzw. – beim Rad – als Meiden von Straßen ein. Valhalla kennt kein hartes Umweg-Budget; der Wert
+    /// wirkt als Bevorzugungs-Stärke, kein exakter Prozent-Umweg.)</summary>
+    public static int OffroadProzent
+    {
+        get => Preferences.Get("offroad_prozent", 30);
+        set => Preferences.Set("offroad_prozent", value);
+    }
+
     // Entfernt (waren reine Schein-Schalter ohne Wirkung – darum ganz aus der App genommen):
     //  • Kartenansicht "3d"/"2d": Mapsui ist eine 2D-Engine ohne Neigung → keine 3D-Ansicht möglich.
     //  • Schattiertes Relief (Hillshade): keine zuverlässige freie Tile-Quelle verfügbar.

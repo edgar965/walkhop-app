@@ -37,6 +37,28 @@ public class RouteAnfrageTests
     }
 
     [Fact]
+    public void CostingOptionen_Offroad_hebt_Fuss_Tracks_und_senkt_Rad_Strassen()
+    {
+        // Fuß neutral + 30 % Offroad: mehr Tracks (0.5+0.3) + Fußwege bevorzugen (walkway_factor < 1).
+        var fuss = RouteService.CostingOptionen("pedestrian", "neutral", true, true, true, 30);
+        Assert.Equal(0.8, (double)fuss["use_tracks"], 3);
+        Assert.True((double)fuss["walkway_factor"] < 1.0);
+
+        // „fest" (bewusst befestigt) ignoriert den Offroad-Bias.
+        var fest = RouteService.CostingOptionen("pedestrian", "fest", true, true, true, 100);
+        Assert.Equal(0.0, (double)fest["use_tracks"], 3);
+        Assert.Equal(1.0, (double)fest["walkway_factor"], 3);
+
+        // Rad + 50 % Offroad: use_roads sinkt unter den Basiswert 0.4 (Straßen meiden).
+        var rad = RouteService.CostingOptionen("bicycle", "", false, false, false, 50);
+        Assert.True((double)rad["use_roads"] < 0.4);
+
+        // 0 % Offroad = unverändertes Verhalten (Rückwärtskompatibilität).
+        var neutral0 = RouteService.CostingOptionen("pedestrian", "neutral", true, true, true, 0);
+        Assert.Empty(neutral0);
+    }
+
+    [Fact]
     public void CostingOptionen_Rad_setzt_Oberflaeche()
     {
         var an = RouteService.CostingOptionen("bicycle", "", false, false, true);

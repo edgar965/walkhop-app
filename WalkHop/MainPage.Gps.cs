@@ -231,26 +231,30 @@ public partial class MainPage
         KarteHelfer.PositionBeamZeichnen(_positionLayer, pos, kursGrad);
     }
 
-    // Breadcrumb-Spur („Brotkrumen") als dezente grau-blaue, dünne, halbtransparente Linie zeichnen
-    // (Mercator-Geometrie wie die Route, aber unauffälliger und UNTER der aktiven Route).
+    // „Gewanderte Route": die gesammelte GPS-Spur des zurückgelegten Weges als Linie zeichnen
+    // (Mercator-Geometrie wie die Route, UNTER der aktiven Route). Anzeige + Farbe sind in den
+    // Einstellungen (Navigation) steuerbar – aus → Ebene leeren.
     private void BreadcrumbZeichnen()
     {
+        if (!Einst.GewanderteAnzeigen)   // Anzeige der gewanderten Route ausgeschaltet
+        { BreadcrumbLeeren(); return; }
         List<(double lat, double lon)> pts;
         lock (_breadcrumbLock) pts = new List<(double lat, double lon)>(_breadcrumb);
-        if (pts.Count < 2)
-        {
-            if (_breadcrumbLayer.Features.Any())
-            { _breadcrumbLayer.Features = new List<IFeature>(); _breadcrumbLayer.DataHasChanged(); }
-            return;
-        }
+        if (pts.Count < 2) { BreadcrumbLeeren(); return; }
         var coords = new Coordinate[pts.Count];
         for (int i = 0; i < pts.Count; i++)
         { var (x, y) = ZuMercator(pts[i].lat, pts[i].lon); coords[i] = new Coordinate(x, y); }
         var f = new GeometryFeature { Geometry = new LineString(coords) };
-        // dezent: grau-blau (#64748b), dünn, halbtransparent (Alpha 150) – liegt unter der kräftigen Route.
-        f.Styles.Add(new VectorStyle { Line = new Pen(Mapsui.Styles.Color.FromArgb(150, 100, 116, 139), 4) });
+        // Farbe aus den Einstellungen (Default Grau), kräftig sichtbar – liegt unter der aktiven Route.
+        f.Styles.Add(new VectorStyle { Line = new Pen(KarteHelfer.Farbe(Einst.GewanderteFarbe), 5) });
         _breadcrumbLayer.Features = new List<IFeature> { f };
         _breadcrumbLayer.DataHasChanged();
+    }
+
+    private void BreadcrumbLeeren()
+    {
+        if (_breadcrumbLayer.Features.Any())
+        { _breadcrumbLayer.Features = new List<IFeature>(); _breadcrumbLayer.DataHasChanged(); }
     }
 
     // ---- Track-Aufnahme (lokal, GPX-Export per Teilen) ---------------------

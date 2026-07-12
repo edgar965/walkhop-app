@@ -225,6 +225,20 @@
                         </VerticalStackLayout>
                     </Border>
 
+                    <Label Text="{loc:Translate einst_sec_offroad}" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="6" Padding="0,4">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Grid.Column="0" Text="{loc:Translate einst_offroad_titel}" Style="{StaticResource RowT}" />
+                                <Label Grid.Column="1" x:Name="OffroadWert" Style="{StaticResource RowT}" Text="30 %" />
+                            </Grid>
+                            <Label Text="{loc:Translate einst_offroad_sub}" Style="{StaticResource RowS}" />
+                            <Slider x:Name="OffroadSlider" Minimum="0" Maximum="100"
+                                    MinimumTrackColor="#16a34a" ThumbColor="White"
+                                    ValueChanged="OnOffroad" />
+                        </VerticalStackLayout>
+                    </Border>
+
                     <Label Text="{loc:Translate einst_sec_farbmodus}" Style="{StaticResource Sec}" />
                     <Border Style="{StaticResource Card}" Padding="4" BackgroundColor="#e2e8f0" StrokeShape="RoundRectangle 12">
                         <Grid ColumnDefinitions="*,*,*" ColumnSpacing="2">
@@ -241,6 +255,24 @@
                                 <Label x:Name="LblFmNacht" Text="{loc:Translate farb_nacht}" FontSize="13" HorizontalOptions="Center" />
                             </Border>
                         </Grid>
+                    </Border>
+
+                    <Label Text="{loc:Translate einst_sec_gewanderte}" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="0">
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="{loc:Translate einst_gewanderte_titel}" Style="{StaticResource RowT}" />
+                                    <Label Text="{loc:Translate einst_gewanderte_sub}" Style="{StaticResource RowS}" />
+                                </VerticalStackLayout>
+                                <Switch Grid.Column="1" x:Name="GewanderteSchalter" Toggled="OnGewanderte" />
+                            </Grid>
+                            <BoxView Style="{StaticResource Trenner}" />
+                            <VerticalStackLayout Spacing="10" Padding="0,12">
+                                <Label Text="{loc:Translate einst_gewanderte_farbe}" Style="{StaticResource RowT}" />
+                                <HorizontalStackLayout x:Name="GewanderteFarbenReihe" Spacing="12" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
                     </Border>
 
                     <Label Text="{loc:Translate einst_sec_tonsprache}" Style="{StaticResource Sec}" />

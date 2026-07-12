@@ -83,6 +83,13 @@ public partial class MainPage
         if (wp == null) return;
         if (Environment.TickCount64 - _letztLangdruckMs < 700) return;   // Langdruck hat das Menü gerade gezeigt
         var (lon, lat) = ZuGeo(wp.X, wp.Y);
+        // In der Vorschau mit mehreren Routenvorschlägen: Tipp auf eine Linie wählt diesen Vorschlag
+        // (statt das Kontextmenü zu öffnen) – „durch Klick auf einen Vorschlag kann ich ihn navigieren".
+        if (!_navAktiv && _vorschlaege.Count > 1)
+        {
+            int idx = NaechsterVorschlag(lat, lon);
+            if (idx >= 0) { if (idx != _vorschlagWahl) VorschlagWaehlen(idx, fit: false); return; }
+        }
         await KontextmenueZeigen(lat, lon);
     }
 
@@ -129,42 +136,24 @@ public partial class MainPage
             features.Add(af);
         }
         var coords = new Coordinate[pts.Count];
-        double minx = double.MaxValue, miny = double.MaxValue, maxx = double.MinValue, maxy = double.MinValue;
         for (int i = 0; i < pts.Count; i++)
         {
             var (x, y) = ZuMercator(pts[i].lat, pts[i].lon);
             coords[i] = new Coordinate(x, y);
-            if (x < minx) minx = x; if (y < miny) miny = y;
-            if (x > maxx) maxx = x; if (y > maxy) maxy = y;
         }
         // maps.me-Stil: weiße Kontur (Casing) + kräftige blaue Route darüber.
         var casing = new GeometryFeature { Geometry = new LineString(coords) };
         casing.Styles.Add(new VectorStyle { Line = new Pen(Mapsui.Styles.Color.FromString("#ffffff"), 11) });
         features.Add(casing);
         var feature = new GeometryFeature { Geometry = new LineString(coords) };
-        feature.Styles.Add(new VectorStyle { Line = new Pen(Mapsui.Styles.Color.FromString("#1d6fe0"), 7) });
+        feature.Styles.Add(new VectorStyle { Line = new Pen(Mapsui.Styles.Color.FromString(RouteFarbeHex), 7) });
         features.Add(feature);
         _routeLayer.Features = features;
         _routeLayer.DataHasChanged();
-        if (fitKamera && pts.Count > 1)
-        {
-            // Rand um die Route lassen (~15 %), damit sie nicht am Bildschirmrand klebt.
-            double mx = (maxx - minx) * 0.15, my = (maxy - miny) * 0.15;
-            if (mx <= 0) mx = 200; if (my <= 0) my = 200;
-            _map.Navigator.ZoomToBox(new MRect(minx - mx, miny - my, maxx + mx, maxy + my));
-            // Die untere Schublade (Peek) verdeckt den unteren Kartenrand. Darum die Ansicht um eine
-            // halbe Peek-Höhe nach OBEN schieben (Center nach Süden) – so liegt die ganze Route inkl.
-            // aktueller Position (Start) ÜBER dem Fenster und ist zentriert im sichtbaren Bereich.
-            var vp = _map.Navigator.Viewport;
-            if (vp.Resolution > 0 && vp.Height > 0)
-            {
-                double versatzPx = SheetPeek / 2.0 + 16;   // halbe Peek-Höhe + etwas Luft
-                _map.Navigator.CenterOn(new MPoint(vp.CenterX, vp.CenterY - versatzPx * vp.Resolution));
-            }
-        }
+        if (fitKamera && pts.Count > 1) KameraAufPunkte(pts);   // gemeinsame Kamera-Fit-Logik (auch für Vorschläge)
     }
 
-    // ---- Richtungspfeil (lila Schaft + Spitze) – Port aus navi_route.js/navi.js ----
+    // ---- Richtungspfeil (Schaft + Spitze in Routenfarbe) – Port aus navi_route.js/navi.js ----
     // Punkt + Segmentindex an kumulativer Distanz `e` (Meter) entlang der Route.
     private static (int idx, double lat, double lon) PunktBeiEntlang(
         List<(double lat, double lon)> route, double[] kum, double e)
@@ -210,7 +199,7 @@ public partial class MainPage
         return double.PositiveInfinity;
     }
 
-    // Richtungspfeil mitführen: lila Schaft (Linie + weißes Casing) entlang der Route
+    // Richtungspfeil mitführen: Schaft in Routenfarbe (Linie + weißes Casing) entlang der Route
     // ab der Position nach vorne, der in einer Pfeilspitze (Chevron) endet.
     private void RichtungPfeilAktualisieren(double entlang)
     {
@@ -228,12 +217,12 @@ public partial class MainPage
         { var (x, y) = ZuMercator(pfad[i].lat, pfad[i].lon); coords[i] = new Coordinate(x, y); }
 
         var feats = new List<IFeature>();
-        // Schaft: weißes Casing + lila Linie
+        // Schaft: weißes Casing + Linie in Routenfarbe (blau, wie die GPS-Route)
         var schaftCasing = new GeometryFeature { Geometry = new LineString(coords) };
         schaftCasing.Styles.Add(new VectorStyle { Line = new Pen(Mapsui.Styles.Color.FromString("#ffffff"), 11) });
         feats.Add(schaftCasing);
         var schaft = new GeometryFeature { Geometry = new LineString(coords) };
-        schaft.Styles.Add(new VectorStyle { Line = new Pen(Mapsui.Styles.Color.FromString("#7c3aed"), 7) });
+        schaft.Styles.Add(new VectorStyle { Line = new Pen(Mapsui.Styles.Color.FromString(RouteFarbeHex), 7) });
         feats.Add(schaft);
 
         // Gefüllte, gekerbte Pfeilspitze am Ende – EXAKT die Web-Form (pfeilSpitzeSvg).
@@ -248,7 +237,7 @@ public partial class MainPage
             var spitze = new GeometryFeature { Geometry = new Polygon(new LinearRing(ring)) };
             spitze.Styles.Add(new VectorStyle
             {
-                Fill = new Mapsui.Styles.Brush(Mapsui.Styles.Color.FromString("#7c3aed")),
+                Fill = new Mapsui.Styles.Brush(Mapsui.Styles.Color.FromString(RouteFarbeHex)),
                 Outline = new Pen(Mapsui.Styles.Color.FromString("#ffffff"), 2.4f),
             });
             feats.Add(spitze);
@@ -368,6 +357,7 @@ public partial class MainPage
         if (effektiv != _modusJetzt) BasiskarteSetzen(effektiv);
         if (Einst.Profil != _profilJetzt) { WanderLayerSetzen(); TabsMarkieren(); }
         if (_wanderLayer.Enabled != Einst.Wanderwege) { _wanderLayer.Enabled = Einst.Wanderwege; _map.RefreshGraphics(); }
+        BreadcrumbZeichnen();   // Anzeige/Farbe der gewanderten Route (Einstellungen) neu anwenden
     }
 
     private void KompassIconAktualisieren()

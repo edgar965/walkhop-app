@@ -44,6 +44,11 @@ public partial class EinstellungenPage : ContentPage
         SprachnaviSchalter.IsToggled = Einst.Ton;
         LautstaerkeSlider.Value = Einst.Ansagelautstaerke;
         BenachrichtigungSchalter.IsToggled = Einst.Benachrichtigungstoene;
+        OffroadSlider.Value = Einst.OffroadProzent;
+        OffroadWertSetzen(Einst.OffroadProzent);
+        GewanderteSchalter.IsToggled = Einst.GewanderteAnzeigen;
+        GewanderteFarbenBauen();
+        GewanderteFarbenReihe.IsEnabled = Einst.GewanderteAnzeigen;
         NaviSpracheLabelSetzen();
         FarbmodusMarkieren();
         // Karte
@@ -166,6 +171,66 @@ public partial class EinstellungenPage : ContentPage
     private void OnSprachnavi(object? sender, ToggledEventArgs e) { if (!_laedt) Einst.Ton = e.Value; }
     private void OnBenachrichtigung(object? sender, ToggledEventArgs e) { if (!_laedt) Einst.Benachrichtigungstoene = e.Value; }
     private void OnLautstaerke(object? sender, ValueChangedEventArgs e) { if (!_laedt) Einst.Ansagelautstaerke = e.NewValue; }
+
+    // Offroad-Bereitschaft (% Umweg für Wald-/kleine Wege): Slider live in Prozent anzeigen + speichern.
+    private void OnOffroad(object? sender, ValueChangedEventArgs e)
+    {
+        int p = (int)Math.Round(e.NewValue);
+        OffroadWertSetzen(p);
+        if (!_laedt) Einst.OffroadProzent = p;
+    }
+
+    private void OffroadWertSetzen(int p) => OffroadWert.Text = L.T("prozent_wert", p);
+
+    // ---- Gewanderte Route (Anzeige + Farbe) --------------------------------
+    // Auswahl an Farben für die gewanderte Route; erste = Default (Grau).
+    private static readonly (string name, string hex)[] GewanderteFarben =
+    {
+        ("grau", "#6b7280"), ("blau", "#3b82f6"), ("gruen", "#16a34a"),
+        ("orange", "#f59e0b"), ("rot", "#ef4444"), ("violett", "#8b5cf6"),
+    };
+    private readonly List<Border> _farbSwatches = new();
+
+    private void OnGewanderte(object? sender, ToggledEventArgs e)
+    {
+        if (_laedt) return;
+        Einst.GewanderteAnzeigen = e.Value;
+        GewanderteFarbenReihe.IsEnabled = e.Value;   // Farbwahl nur relevant, wenn die Anzeige an ist
+    }
+
+    // Farb-Swatches (antippbare Kreise) programmatisch aufbauen – so lässt sich der Auswahl-Ring
+    // einfach mitführen.
+    private void GewanderteFarbenBauen()
+    {
+        _farbSwatches.Clear();
+        GewanderteFarbenReihe.Children.Clear();
+        foreach (var (_, hex) in GewanderteFarben)
+        {
+            string h = hex;
+            var sw = new Border
+            {
+                WidthRequest = 34, HeightRequest = 34,
+                BackgroundColor = Color.FromArgb(h),
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 17 },
+                StrokeThickness = 3, Stroke = Colors.Transparent,
+            };
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += (_, _) => { Einst.GewanderteFarbe = h; GewanderteFarbenMarkieren(); };
+            sw.GestureRecognizers.Add(tap);
+            _farbSwatches.Add(sw);
+            GewanderteFarbenReihe.Children.Add(sw);
+        }
+        GewanderteFarbenMarkieren();
+    }
+
+    private void GewanderteFarbenMarkieren()
+    {
+        for (int i = 0; i < _farbSwatches.Count; i++)
+        {
+            bool sel = string.Equals(GewanderteFarben[i].hex, Einst.GewanderteFarbe, StringComparison.OrdinalIgnoreCase);
+            _farbSwatches[i].Stroke = sel ? Color.FromArgb("#0f172a") : Color.FromArgb("#e2e8f0");
+        }
+    }
 
     private void OnFarbmodus(object? sender, TappedEventArgs e)
     {
