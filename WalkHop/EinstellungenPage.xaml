@@ -156,6 +156,19 @@
                     <!-- Dauerhaft „ignorierte“ Fehler wieder anzeigen lassen -->
                     <Button Text="{loc:Translate einst_fehler_reset_btn}" Clicked="OnFehlerReset"
                             BackgroundColor="#64748b" TextColor="White" CornerRadius="10" />
+
+                    <!-- Diagnose-Protokoll: an den Server senden bzw. lokal löschen -->
+                    <Label Text="{loc:Translate einst_sec_protokoll}" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="10">
+                            <Label Text="{loc:Translate einst_protokoll_info}" FontSize="12" TextColor="#64748b" />
+                            <Label x:Name="ProtokollGroesse" FontSize="12" TextColor="#94a3b8" />
+                            <Button x:Name="LogsSendenBtn" Text="{loc:Translate einst_logs_senden}" Clicked="OnLogsSenden"
+                                    BackgroundColor="#0d9488" TextColor="White" CornerRadius="10" />
+                            <Button Text="{loc:Translate einst_logs_loeschen}" Clicked="OnLogsLoeschen"
+                                    BackgroundColor="#e2231a" TextColor="White" CornerRadius="10" />
+                        </VerticalStackLayout>
+                    </Border>
                 </VerticalStackLayout>
 
                 <!-- ================= Tab 2: Navigation ================= -->

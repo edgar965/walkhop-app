@@ -29,7 +29,7 @@ public partial class MainPage : ContentPage
     private const int OfflineExtraZoom = 2;     // beim Offline-Laden so viele Stufen tiefer
     private const int OfflineMaxKacheln = 300;  // Obergrenze pro Offline-Download
     private const int AppKontoOfflineP5 = 3;    // Abo 5 €: 3 Offline-Karten inklusive (vgl. AppKonto.OFFLINE_INKLUSIVE_P5)
-    // Richtungspfeil (maps.me-/Web-Konzept): lila Schaft ab der Position nach vorne auf
+    // Richtungspfeil (maps.me-/Web-Konzept): Schaft in Routenfarbe ab der Position nach vorne auf
     // der Route. Grund-Länge; steht eine Abbiegung in Reichweite, wächst er bis dahin.
     private const double VorausMin = 90;        // Grund-Länge des Richtungspfeils (m)
     private const double VorausAbbieg = 150;    // Abbiegung <= so nah → Pfeil bis dahin zeigen
@@ -49,13 +49,18 @@ public partial class MainPage : ContentPage
     private MemoryLayer _tourLayer = null!;        // alle GPS-Tour-Routen (zum Antippen → „abwandern")
     private List<TourInfo> _touren = new();
     private bool _tourenGezeichnet;
-    private MemoryLayer _richtungLayer = null!;   // lila Richtungspfeil (Schaft + Spitze) voraus auf der Route
+    private MemoryLayer _richtungLayer = null!;   // Richtungspfeil (Schaft + Spitze, Routenfarbe) voraus auf der Route
     private MemoryLayer _breadcrumbLayer = null!; // dezente „Brotkrumen"-Spur des zurückgelegten Weges (unter der Route)
-    private readonly List<(double lat, double lon)> _breadcrumb = new();   // gesammelte GPS-Spur
+    private readonly List<(double lat, double lon)> _breadcrumb = new();   // gesammelte GPS-Spur (nur HEUTE)
+    private DateTime _breadcrumbTag = DateTime.MinValue;   // Tag der aktuellen Spur → bei Tageswechsel zurücksetzen
     private readonly object _breadcrumbLock = new();
     // Brotkrumen-Spur deckeln: bei ~1 Fix/s reichen ein paar Tausend Punkte locker; verhindert
     // unbegrenztes Wachstum (Speicher) und teures Kopieren/Zeichnen der gesamten Liste.
     private const int MaxBreadcrumb = 5000;
+    // Breadcrumb-Neuaufbau ist O(n) (ganze Linie neu). Bei schnellem Punkt-Zufluss (Rad/Auto) höchstens
+    // alle 2,5 s neu zeichnen – die verzögerte Spur HINTER dem Nutzer ist visuell nicht wahrnehmbar.
+    private long _letztBreadcrumbMs = -100000;
+    private const long BreadcrumbRedrawMs = 2500;
     // Gruppen-Position: eigene Live-Position teilen + Mitglieder als Marker zeigen (Code-basiert).
     private MemoryLayer _gruppeLayer = null!;
     private string _gruppeCode = "";              // aktiver Gruppen-Code (leer = nicht in einer Gruppe)
@@ -79,6 +84,7 @@ public partial class MainPage : ContentPage
     private double _gpsKurs;          // Fahrtrichtung aus GPS (Fallback ohne Kompass)
     private (double lat, double lon)? _letzteKursGeo;   // letzte Position für Kursberechnung aus Bewegung
     private double _letztEntlang;     // zuletzt projizierte Distanz entlang der Route (für Zoom-Redraw)
+    private double _pfeilEntlangGezeichnet = -1;   // entlang-Wert des zuletzt GEZEICHNETEN Richtungspfeils (Redraw-Drosselung)
     private bool _folgen, _fahrtrichtung, _vollbild;
     private volatile bool _userBeruehrt;   // Finger berührt die Karte → Kamera nicht programmatisch bewegen
     private long _letzteBeruehrungMs;
@@ -94,6 +100,7 @@ public partial class MainPage : ContentPage
     private IDispatcherTimer? _zoomTimer;
     private bool _gpsLaeuft, _kompassLaeuft, _berechtigungGeprueft;
     private bool _positionsSchleifeLaeuft;   // genau eine Live-Positions-Schleife (umgeht den 50-m-Distanzfilter)
+    private long _letztGpsLogMs = -100000;   // Drosselung der GPS-Diagnose ins Protokoll
     private volatile bool _seiteLebt;        // Seite sichtbar (OnAppearing…OnDisappearing): Schutz für fire-and-forget-UI-Zugriffe
 
     // Live-Navigation
@@ -160,7 +167,7 @@ public partial class MainPage : ContentPage
         _map.Layers.Add(_breadcrumbLayer);
         _routeLayer = new MemoryLayer("Route");
         _map.Layers.Add(_routeLayer);
-        // Lila Richtungspfeil: liegt ÜBER der (blauen) Route, aber UNTER dem Positionsmarker.
+        // Richtungspfeil (Routenfarbe): liegt ÜBER der (blauen) Route, aber UNTER dem Positionsmarker.
         _richtungLayer = new MemoryLayer("Richtung");
         _map.Layers.Add(_richtungLayer);
         // Gruppen-Mitglieder (Live-Marker): über der Route/dem Richtungspfeil, aber UNTER dem
@@ -292,6 +299,7 @@ public partial class MainPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        if (_navAktiv) Meldung.Notiz("NAV", "Navigationsseite verlassen (OnDisappearing) trotz aktiver Navigation");
         _seiteLebt = false;  // ab hier dürfen fire-and-forget-Fortsetzungen die UI nicht mehr berühren
         SensorenStoppen();   // Lifecycle-Gegenstück zu OnAppearing: Akku/Leaks vermeiden
         GruppeStop();        // Gruppen-Polling pausieren (Code bleibt erhalten)
@@ -303,7 +311,7 @@ public partial class MainPage : ContentPage
         if (_aktuell == null) return;
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            _aktuell.NavigationBeenden();
+            _aktuell.NavigationBeenden("Sitzung beendet (Logout)");
             _aktuell.SensorenStoppen();
         });
     }

@@ -15,6 +15,10 @@ public class EinstAllgemeinTests : AppBasis
     [TestCase("Kompakter Suchmodus")]
     [TestCase("Track automatisch aufzeichnen")]   // neue Auto-Aufnahme (statt Tracker-Knopf)
     [TestCase("Fotos nur über WLAN")]
+    // Diagnose-Protokoll (Logging): Abschnitt + beide Knöpfe
+    [TestCase("DIAGNOSE-PROTOKOLL")]
+    [TestCase("Logs an Server")]
+    [TestCase("Logs löschen")]
     public void Allgemein_zeigt(string label)
         => Assert.That(DaText(label), Is.True, $"'{label}' fehlt im Tab Allgemein");
 }
@@ -37,13 +41,20 @@ public class EinstNavigationTests : AppBasis
     [TestCase("Autobahn vermeiden")]
     [TestCase("Unbefestigte Wege vermeiden")]
     [TestCase("Schlechte Oberflächen vermeiden")]
+    // Offroad: Umwege in Kauf nehmen (%) – neuer Abschnitt
+    [TestCase("OFFROAD")]
+    [TestCase("Umwege in Kauf nehmen")]
     [TestCase("FARBMODUS")]
     [TestCase("Auto-Modus")]
     [TestCase("Tagmodus")]
     [TestCase("Nachtmodus")]
+    // Gewanderte Route (Anzeige + Farbe) – neuer Abschnitt
+    [TestCase("GEWANDERTE ROUTE")]
+    [TestCase("Gewanderte Route auf der Karte anzeigen")]
+    [TestCase("Farbe der gewanderten Route")]
     [TestCase("Sprachnavigation")]
     [TestCase("Lautstärke der Anweisungen")]
-    [TestCase("Benachrichtigungstöne")]
+    [TestCase("Abbiege-Töne")]   // umbenannt von „Benachrichtigungstöne"
     [TestCase("Sprache der Navigation")]
     // „Bluetooth-Wiedergabe" + „KARTENANSICHT/Geneigte Ansicht/2D-Ansicht" wurden entfernt
     // (nicht unterstützt: 3D in Mapsui nicht möglich, BT-Audio-Routing nicht umgesetzt).

@@ -21,57 +21,32 @@ public partial class MainPage
     private const string VorschlagSchnellHex = "#7c3aed";   // violett – schnellste
     private const string VorschlagMittelHex = "#f59e0b";    // orange – Mittelding
 
-    private sealed record Vorschlag(RouteErgebnis Route, string FarbeHex, string Label);
+    private sealed record Vorschlag(RouteErgebnis Route, string FarbeHex, string Label, string Wegtyp, int Offroad);
     private List<Vorschlag> _vorschlaege = new();
     private int _vorschlagWahl;
+    // Costing der GEWÄHLTEN Variante – der Reroute nutzt es, damit die Fahrt ihren Charakter behält
+    // (z. B. „Schnellste" bleibt schnell). null = Einstellungs-Defaults (Tour/Plan/keine Variante).
+    private int? _navOffroad;
+    private string? _navWegtyp;
 
-    /// <summary>Berechnet bis zu drei Routenvarianten (nur die erste zählt aufs Routen-Kontingent,
-    /// die beiden Zusatzvarianten laufen als „Folge"). Geometrisch (nahezu) gleiche Varianten werden
-    /// verworfen, sodass keine Doubletten gezeigt werden.</summary>
-    private async Task<List<Vorschlag>> BerechneVorschlaege(double sLat, double sLon, double zLat, double zLon)
+    /// <summary>Baut die Vorschlagsliste aus Hauptroute + ECHTEN Alternativen (Valhalla „alternates"):
+    /// „Empfohlen" (blau) + bis zu zwei topologisch verschiedene Alternativen (violett/orange), Doubletten
+    /// entfernt. Grund: Costing-Varianten (Offroad-%) liefern im Stadtgebiet fast immer dieselbe Route –
+    /// die Alternativen des Routers sind der zuverlässige Weg zu 3 unterschiedlichen Vorschlägen.</summary>
+    private List<Vorschlag> VorschlaegeAusRoute(RouteErgebnis haupt, List<RouteErgebnis> alternativen)
     {
-        (string label, string farbe, string wegtyp, int offroad, bool folge)[] varianten =
+        var liste = new List<Vorschlag>
         {
-            (L.T("vorschlag_einst"),   RouteFarbeHex,       Einst.Wegtyp, Einst.OffroadProzent,     false),
-            (L.T("vorschlag_schnell"), VorschlagSchnellHex, "neutral",    0,                         true),
-            (L.T("vorschlag_mittel"),  VorschlagMittelHex,  Einst.Wegtyp, Einst.OffroadProzent / 2,  true),
+            new(haupt, RouteFarbeHex, L.T("vorschlag_einst"), Einst.Wegtyp, Einst.OffroadProzent),
         };
-        // Alle Varianten parallel anfragen (unabhängige Requests) – spart Wartezeit gegenüber seriell.
-        var aufgaben = varianten.Select(v =>
+        string[] farben = { VorschlagSchnellHex, VorschlagMittelHex };   // violett, orange für die Alternativen
+        foreach (var a in alternativen)
         {
-            var opt = RouteService.CostingOptionen(Einst.Profil, v.wegtyp,
-                Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche, v.offroad);
-            return RouteService.RouteAsync(sLat, sLon, zLat, zLon, Einst.Profil, opt, Einst.NaviLocale, folge: v.folge);
-        }).ToArray();
-
-        var liste = new List<Vorschlag>();
-        for (int i = 0; i < aufgaben.Length; i++)
-        {
-            RouteErgebnis? r = null;
-            try { r = await aufgaben[i]; }
-            catch (PaywallException) when (i == 0) { throw; }   // nur die erste (zählende) Variante löst die Paywall aus
-            catch (Exception ex) { Debug.WriteLine(ex); }
-            if (r != null && r.Punkte.Count >= 2 && !liste.Any(x => Aehnlich(x.Route, r)))
-                liste.Add(new Vorschlag(r, varianten[i].farbe, varianten[i].label));
+            if (liste.Count >= 3) break;
+            if (a.Punkte.Count < 2 || liste.Any(v => NavGeo.RoutenAehnlich(v.Route, a))) continue;   // Doublette überspringen
+            liste.Add(new Vorschlag(a, farben[liste.Count - 1], L.T("vorschlag_alt"), Einst.Wegtyp, Einst.OffroadProzent));
         }
         return liste;
-    }
-
-    /// <summary>Zwei Routen gelten als (nahezu) gleich, wenn Länge UND Geometrie an fünf Stützstellen
-    /// dicht beieinander liegen – so verschwinden Doubletten, wenn eine Variante nichts Neues bringt.</summary>
-    private static bool Aehnlich(RouteErgebnis a, RouteErgebnis b)
-    {
-        if (Math.Abs(a.Km - b.Km) > Math.Max(0.05, 0.03 * Math.Max(a.Km, b.Km))) return false;
-        var ka = NavGeo.Kumulativ(a.Punkte);
-        var kb = NavGeo.Kumulativ(b.Punkte);
-        if (ka.Length < 2 || kb.Length < 2) return false;
-        for (int i = 1; i <= 5; i++)
-        {
-            var pa = PunktBeiEntlang(a.Punkte, ka, ka[^1] * i / 6.0);
-            var pb = PunktBeiEntlang(b.Punkte, kb, kb[^1] * i / 6.0);
-            if (NavGeo.Haversine(pa.lat, pa.lon, pb.lat, pb.lon) > 40) return false;
-        }
-        return true;
     }
 
     /// <summary>Wählt einen Vorschlag als (Vorschau-)Route: setzt ihn als Nav-Route und zeichnet alle
@@ -81,6 +56,7 @@ public partial class MainPage
         if (i < 0 || i >= _vorschlaege.Count) return;
         _vorschlagWahl = i;
         var v = _vorschlaege[i];
+        _navOffroad = v.Offroad; _navWegtyp = v.Wegtyp;   // Reroute soll den Charakter der gewählten Variante behalten
         _navMinuten = v.Route.Minuten;
         var ank = DateTime.Now.AddMinutes(v.Route.Minuten).ToString("HH:mm");
         NavStart(v.Route.Punkte, v.Route.Manoever,
@@ -118,13 +94,18 @@ public partial class MainPage
     }
 
     // „#rrggbb" + Alpha → Mapsui-Farbe (ohne Abhängigkeit von Farb-Kanal-Properties).
+    // Bei ungültigem Hex ein neutrales Grau statt einer Exception (defensiv wie KarteHelfer.Farbe).
     private static Mapsui.Styles.Color HexArgb(string hex, int alpha)
     {
-        hex = hex.TrimStart('#');
-        int r = Convert.ToInt32(hex.Substring(0, 2), 16);
-        int g = Convert.ToInt32(hex.Substring(2, 2), 16);
-        int b = Convert.ToInt32(hex.Substring(4, 2), 16);
-        return Mapsui.Styles.Color.FromArgb(alpha, r, g, b);
+        try
+        {
+            hex = hex.TrimStart('#');
+            int r = Convert.ToInt32(hex.Substring(0, 2), 16);
+            int g = Convert.ToInt32(hex.Substring(2, 2), 16);
+            int b = Convert.ToInt32(hex.Substring(4, 2), 16);
+            return Mapsui.Styles.Color.FromArgb(alpha, r, g, b);
+        }
+        catch { return Mapsui.Styles.Color.FromArgb(alpha, 107, 114, 128); }   // #6b7280
     }
 
     /// <summary>Kamera auf eine Punktliste fitten (Bounding-Box + Rand), Ansicht um eine halbe Peek-Höhe

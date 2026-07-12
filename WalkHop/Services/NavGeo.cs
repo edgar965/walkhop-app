@@ -45,6 +45,38 @@ public static class NavGeo
         return k;
     }
 
+    /// <summary>Punkt (Segmentindex + lat/lon) an kumulativer Distanz <paramref name="e"/> (Meter)
+    /// entlang der Route – linear zwischen den Stützpunkten interpoliert.</summary>
+    public static (int idx, double lat, double lon) PunktBeiEntlang(
+        List<(double lat, double lon)> route, double[] kum, double e)
+    {
+        int i = 0;
+        while (i < kum.Length - 1 && kum[i + 1] < e) i++;
+        double seg = Math.Max(1, kum[i + 1] - kum[i]);
+        double t = Math.Clamp((e - kum[i]) / seg, 0, 1);
+        var a = route[i];
+        var b = route[Math.Min(i + 1, route.Count - 1)];
+        return (i, a.lat + (b.lat - a.lat) * t, a.lon + (b.lon - a.lon) * t);
+    }
+
+    /// <summary>Zwei Routen gelten als (nahezu) GLEICH, wenn Länge (±3 %/50 m) UND Geometrie an fünf
+    /// Stützstellen (≤ 40 m) dicht beieinander liegen. So werden Doubletten unter den Vorschlägen entfernt,
+    /// ECHTE Alternativen (deutlich andere Länge/Verlauf) aber behalten.</summary>
+    public static bool RoutenAehnlich(RouteErgebnis a, RouteErgebnis b)
+    {
+        if (Math.Abs(a.Km - b.Km) > Math.Max(0.05, 0.03 * Math.Max(a.Km, b.Km))) return false;
+        var ka = Kumulativ(a.Punkte);
+        var kb = Kumulativ(b.Punkte);
+        if (ka.Length < 2 || kb.Length < 2) return false;
+        for (int i = 1; i <= 5; i++)
+        {
+            var pa = PunktBeiEntlang(a.Punkte, ka, ka[^1] * i / 6.0);
+            var pb = PunktBeiEntlang(b.Punkte, kb, kb[^1] * i / 6.0);
+            if (Haversine(pa.lat, pa.lon, pb.lat, pb.lon) > 40) return false;
+        }
+        return true;
+    }
+
     /// <summary>Nächster Segmentindex + zurückgelegte Strecke (Meter) + Abstand zur Route (Meter).
     /// Mit <paramref name="letzterIdx"/> &gt;= 0 wird nur ein Fenster um den letzten Index
     /// durchsucht (O(1) im GPS-Takt statt O(n)); bei großer Abweichung folgt ein Vollscan.</summary>

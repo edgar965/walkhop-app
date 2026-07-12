@@ -54,18 +54,35 @@ public partial class MainPage
             for (int i = 0; i < 24 && _letzteGeo == null; i++) await Task.Delay(250);
             start = _startUeberschreibung ?? _letzteGeo;
         }
-        if (start == null) { Status(L.T("st_noch_kein_gps"), autoAus: true); return; }
-        Status(L.T("st_route_berechnet"));
+        bool standardStart = false;
+        if (start == null)
+        {
+            // Kein GPS (z. B. drinnen) → statt Abbruch vom Standard-Punkt (Einstellungen → Karte, Default
+            // „Berlin Mitte") aus routen, damit man die Navigation auch ohne Empfang planen/ausprobieren kann.
+            start = (Einst.StandardLat, Einst.StandardLng);
+            standardStart = true;
+        }
+        Meldung.Notiz("NAV", $"RouteZu Start={start.Value.lat:F5},{start.Value.lon:F5} override={_startUeberschreibung != null} standard={standardStart} Ziel={zielLat:F5},{zielLon:F5}");
+        Status(standardStart
+            ? L.T("st_start_standardpunkt", Standort.StandardnameAnzeige(Einst.StandardName))
+            : L.T("st_route_berechnet"));
         try
         {
-            // Drei Varianten (Einstellungen/blau, schnellste/violett, Mittelding/orange) als Vorschläge.
-            var vorschlaege = await BerechneVorschlaege(start.Value.lat, start.Value.lon, zielLat, zielLon);
-            if (vorschlaege.Count == 0) { Status(L.T("st_keine_route"), autoAus: true); return; }
+            // EINE Anfrage mit echten Routen-Alternativen (alternates=2). Costing-Varianten (Offroad-%)
+            // liefern in der Praxis fast immer dieselbe Route – die Router-Alternativen sind topologisch
+            // verschieden → „Empfohlen" (blau) + bis zu 2 Alternativen (violett/orange).
+            var opt = RouteService.CostingOptionen(Einst.Profil, Einst.Wegtyp,
+                Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche,
+                Einst.OffroadProzent);
+            var (haupt, alternativen) = await RouteService.RouteVollAsync(start.Value.lat, start.Value.lon,
+                zielLat, zielLon, Einst.Profil, opt, Einst.NaviLocale, 2);
+            if (haupt == null || haupt.Punkte.Count < 2) { Status(L.T("st_keine_route"), autoAus: true); return; }
             _startUeberschreibung = null;
             _istTour = false; _tourOriginal = null; _navZiel = (zielLat, zielLon);
             _alternativen = new();          // Vorschläge ersetzen die früheren (grauen) Alternativen
-            _vorschlaege = vorschlaege;
-            VorschlagWaehlen(0, fit: true);  // ersten Vorschlag (Einstellungen/blau) als Vorschau aktivieren
+            _vorschlaege = VorschlaegeAusRoute(haupt, alternativen);
+            Meldung.Notiz("NAV", $"Vorschläge: {_vorschlaege.Count} (Haupt {haupt.Km:0.0} km, {alternativen.Count} Alternativen)");
+            VorschlagWaehlen(0, fit: true);  // „Empfohlen" als Vorschau aktivieren
             Status(null);
             _ = ZielMerkenMitName(zielLat, zielLon, zielName);   // Name ggf. per Reverse-Geocoding (Hintergrund)
             _ = Auth.AktualisiereAsync();   // Tageszähler im Konto aktualisieren
@@ -86,6 +103,10 @@ public partial class MainPage
     private void NavStart(List<(double lat, double lon)> punkte, List<Manoever> manoever, string infoText, string ankunft = "", bool fitKamera = true, bool imLauf = false, bool vorschlagModus = false)
     {
         if (punkte == null || punkte.Count < 2) { Status(L.T("st_route_ungueltig"), autoAus: true); return; }
+        Meldung.Notiz("NAV", $"NavStart: {punkte.Count} Pkt, imLauf={imLauf}, vorschlag={vorschlagModus}, warAktiv={_navAktiv}");
+        // Diagnose „Navigation bricht ab": eine Route OHNE imLauf zu setzen, während aktiv navigiert wird,
+        // würde in die „Start"-Vorschau zurückfallen. Sollte nicht (mehr) vorkommen → sonst hier sichtbar.
+        if (!imLauf && _navAktiv) Meldung.Notiz("NAV", "!! Route ohne imLauf gesetzt trotz aktiver Navigation → Vorschau");
         // Frisch berechnete Route → Vorschau (Start-Knopf). Ein Reroute WÄHREND der aktiven Navigation
         // (imLauf) darf NICHT in die Vorschau zurückwerfen – sonst poppt der „Start"-Knopf auf, die
         // Turn-by-Turn-Führung stoppt und es wird nicht mehr automatisch neu geroutet. Dann bleibt
@@ -95,7 +116,13 @@ public partial class MainPage
         // vorschlagModus: mehrere farbige Varianten zeichnen (gewählte hervorgehoben). Jeder ANDERE Flow
         // (Tour, Plan, Umkehr, Reroute …) verwirft alte Vorschläge und zeichnet die eine Route normal.
         if (vorschlagModus) VorschlaegeZeichnen(fitKamera);
-        else { VorschlaegeVerwerfen(); ZeichneRoute(punkte, fitKamera); }
+        else
+        {
+            // Frischer Nicht-Varianten-Flow (kein Reroute-im-Lauf) → Reroute nutzt wieder die Einstellungen.
+            if (!imLauf) { _navOffroad = null; _navWegtyp = null; }
+            VorschlaegeVerwerfen();
+            ZeichneRoute(punkte, fitKamera);
+        }
         _navPunkte = punkte;
         _navKum = NavGeo.Kumulativ(punkte);
         _navManoever = manoever;
@@ -107,8 +134,9 @@ public partial class MainPage
         _tonManoever = -1;
         _navIdx = 0;
         _zielAngesagt = false;
+        _pfeilEntlangGezeichnet = -1;   // neue Route-Geometrie → Richtungspfeil beim nächsten Fix neu bauen (nicht am alten Verlauf hängen)
         NaviPanel.IsVisible = true;
-        _ = HoeheLaden(punkte);
+        _ = HoeheLaden(punkte);   // Höhenprofil der (gewählten) Route IMMER laden – sonst steht beim Vorschlag-Wechsel ein falsches Profil
         DistNaechstLabel.Text = "";
         NaviInfoLabel.Text = infoText;
         ZielLabel.Text = string.IsNullOrEmpty(infoText) ? L.T("ziel") : infoText;
@@ -156,7 +184,9 @@ public partial class MainPage
     {
         if (_navPunkte == null || _navPunkte.Count < 2) return;
         _navAktiv = true;
+        Meldung.Notiz("NAV", $"Navigation aktiviert (Start), {_navPunkte.Count} Pkt");
         // Ab Start nur noch die gewählte Route (normal blau) zeigen – die anderen Vorschläge verwerfen.
+        // (Höhenprofil wurde bereits in NavStart geladen → kein erneuter Request nötig.)
         if (_vorschlaege.Count > 0) { VorschlaegeVerwerfen(); ZeichneRoute(_navPunkte, fitKamera: false); }
         _navStartMs = Environment.TickCount64;   // Schonfrist: direkt nach Start/Reroute nicht sofort wieder umrouten
         _zentrierenNaechsterFix = false;   // beim Start die per fitKamera gefittete GANZE Route NICHT durch
@@ -188,7 +218,7 @@ public partial class MainPage
         var (idx, entlang, abstand) = NavGeo.Projektion(lat, lon, _navPunkte, _navKum, _navIdx);
         _navIdx = idx;   // Fenster-Hinweis für den nächsten Tick (O(1) statt O(n))
         double rest = NaviLogik.Reststrecke(_navGesamt, entlang);
-        RichtungPfeilAktualisieren(entlang);   // lila Richtungspfeil voraus mitführen
+        RichtungPfeilAktualisieren(entlang);   // Richtungspfeil (Routenfarbe) voraus mitführen
 
         // Auto-Reroute bei Abweichung von der Route (>50 m), gedrosselt. Schonfrist nach Start/Reroute
         // (10 s): verhindert den spurious Sofort-Reroute am (Rundtour-)Start, der die volle Tour durch
@@ -197,6 +227,7 @@ public partial class MainPage
             && Environment.TickCount64 - _letztRerouteMs > 6000 && Environment.TickCount64 - _navStartMs > 10000)
         {
             _letztRerouteMs = Environment.TickCount64;
+            Meldung.Notiz("NAV", $"Abseits Route ({abstand:0} m) → Reroute");
             _ = Reroute(lat, lon);
         }
 
@@ -215,7 +246,7 @@ public partial class MainPage
             {
                 _zielAngesagt = true;
                 if (Einst.Ton) Sprich(NaviText("ansage_ziel_erreicht"));
-                NavigationBeenden();   // setzt selbst Status(null) – daher Meldung DANACH setzen
+                NavigationBeenden("Ziel erreicht");   // setzt selbst Status(null) – daher Meldung DANACH setzen
                 Status(L.T("st_ziel_erreicht"), autoAus: true);
             }
             return;
@@ -278,11 +309,14 @@ public partial class MainPage
     private async Task Reroute(double lat, double lon)
     {
         _reroutLaeuft = true;
+        Meldung.Notiz("NAV", $"Reroute start (istTour={_istTour})");
         try
         {
-            var opt = RouteService.CostingOptionen(Einst.Profil, Einst.Wegtyp,
+            // Reroute mit dem Costing der GEWÄHLTEN Variante (falls gesetzt), sonst den Einstellungen –
+            // so behält z. B. „Schnellste" auch nach dem Umrouten ihren Charakter.
+            var opt = RouteService.CostingOptionen(Einst.Profil, _navWegtyp ?? Einst.Wegtyp,
                 Einst.VermeideAutobahn, Einst.VermeideUnbefestigt, Einst.VermeideSchlechteOberflaeche,
-                Einst.OffroadProzent);
+                _navOffroad ?? Einst.OffroadProzent);
             if (_istTour && _tourOriginal != null)
             {
                 var kum = NavGeo.Kumulativ(_tourOriginal);
@@ -456,7 +490,7 @@ public partial class MainPage
     // „Stop" beendet die Navigation und kehrt zur START-Seite zurück (nicht in die Vorschau mit „Start").
     private async void OnStop(object? sender, EventArgs e)
     {
-        NavigationBeenden();
+        NavigationBeenden("Stop-Knopf");
         try { await Shell.Current.GoToAsync("//start"); }
         catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Zur Startseite wechseln", ex); }
     }
@@ -468,17 +502,19 @@ public partial class MainPage
         catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Zur Startseite wechseln", ex); }
     }
 
-    private void NavigationBeenden()
+    private void NavigationBeenden(string grund = "")
     {
+        Meldung.Notiz("NAV", $"Navigation beendet: {(string.IsNullOrEmpty(grund) ? "—" : grund)} (warAktiv={_navAktiv})");
         _navPunkte = null; _navKum = null; _navManoever = new(); _navManoeverBegin = Array.Empty<int>();
         _letztGesprochen = -1; _zielAngesagt = false; _tonManoever = -1; _startUeberschreibung = null;
         _letztNotifText = ""; NaviNotif.Aus();   // Watch-Hinweis entfernen
         _alternativen.Clear(); AltChip.IsVisible = false;
         VorschlaegeVerwerfen();   // Routenvorschläge + Chips verwerfen
+        _navOffroad = null; _navWegtyp = null;   // Varianten-Costing zurücksetzen (nächste Navigation = Einstellungen)
         _navAktiv = false;
         _routeLayer.Features = new List<IFeature>();
         _routeLayer.DataHasChanged();
-        RichtungAus();   // lila Richtungspfeil entfernen
+        RichtungAus();   // Richtungspfeil entfernen
         AnweisungBox.IsVisible = false;
         NaviPanel.IsVisible = false;
         SheetSetzen(false, animiert: false);   // Schublade eingeklappt zurücksetzen

@@ -54,6 +54,8 @@ public partial class MainPage
         {
             var letzte = await Geolocation.Default.GetLastKnownLocationAsync();
             GpsLog($"LastKnown = {(letzte == null ? "NULL" : $"{letzte.Latitude:F5},{letzte.Longitude:F5}")}");
+            Meldung.Notiz("GPS", letzte == null ? "LastKnown = NULL"
+                : $"LastKnown {letzte.Latitude:F5},{letzte.Longitude:F5} acc={letzte.Accuracy:0}m alter={(DateTimeOffset.UtcNow - letzte.Timestamp).TotalMinutes:0.0}min");
             if (letzte != null && _letztePos == null) VerarbeitePosition(letzte);
         }
         catch (Exception ex) { GpsLog("LastKnown-Fehler: " + ex.Message); }
@@ -102,6 +104,7 @@ public partial class MainPage
                     if (!fehlerGemeldet)
                     {
                         fehlerGemeldet = true;   // dezenter, einmaliger Hinweis statt stillem Dauerfehler
+                        Meldung.Notiz("GPS", "Live-Fix Timeout/Fehler – kein Standort erhalten (drinnen? Ortung aus?)");
                         MainThread.BeginInvokeOnMainThread(() =>
                         { if (_seiteLebt) Status(L.T("st_gps_nicht_verfuegbar"), autoAus: true); });
                     }
@@ -129,6 +132,21 @@ public partial class MainPage
     /// <summary>Verarbeitet einen Standort – egal ob aus Foreground-Listening, Erst-Fix oder Poll.</summary>
     private void VerarbeitePosition(Microsoft.Maui.Devices.Sensors.Location loc)
     {
+        // VERALTETEN Fix verwerfen: ein alter Cache-Standort (z. B. GetLastKnownLocation von gestern/
+        // einem anderen Ort) darf NICHT als aktuelle Position / Routenstart dienen – sonst startet die
+        // Route „ganz woanders" und die gewanderte Route zieht eine lange Linie dorthin. Nur verwerfen,
+        // wenn der Zeitstempel PLAUSIBEL alt ist (10 min…2 Tage); absurde/fehlende Zeitstempel (Epoch/
+        // Zukunft) NICHT verwerfen, sonst würgt ein Gerät mit schlechtem Zeitstempel das GPS ab.
+        // 10 min (statt 2): ein wenige Minuten alter, ortsrichtiger LastKnown-Fix soll die Position weiter
+        // seeden (drinnen/schwacher Empfang) – nur klar veraltete Fixes (anderer Ort) werden verworfen.
+        var alter = DateTimeOffset.UtcNow - loc.Timestamp;
+        bool verwerfen = alter > TimeSpan.FromMinutes(10) && alter < TimeSpan.FromDays(2);
+        if (Environment.TickCount64 - _letztGpsLogMs > 3000)   // Diagnose ins Protokoll (gedrosselt)
+        {
+            _letztGpsLogMs = Environment.TickCount64;
+            Meldung.Notiz("GPS", $"Fix {loc.Latitude:F5},{loc.Longitude:F5} acc={loc.Accuracy:0}m alter={alter.TotalMinutes:0.0}min → {(verwerfen ? "VERWORFEN" : "ok")}");
+        }
+        if (verwerfen) { GpsLog($"Fix verworfen (veraltet {alter.TotalMinutes:0} min)"); return; }
         // Felder dürfen vom Worker-Thread gesetzt werden; UI/Karte nur auf dem UI-Thread.
         // Fahrtrichtung aus der BEWEGUNG berechnen (loc.Course ist auf vielen Geräten leer; N55 hat
         // keinen Kompass). Erst ab ~6 m → stabile Richtung, kein Zittern im Stand.
@@ -156,8 +174,14 @@ public partial class MainPage
         bool breadcrumbNeu = false;
         lock (_breadcrumbLock)
         {
-            if (_breadcrumb.Count == 0 ||
-                NavGeo.Haversine(_breadcrumb[^1].lat, _breadcrumb[^1].lon, loc.Latitude, loc.Longitude) > 8)
+            // „Gewanderte Route" nur AB HEUTE: bei Tageswechsel die alte Spur verwerfen.
+            if (_breadcrumbTag != DateTime.Today) { _breadcrumb.Clear(); _breadcrumbTag = DateTime.Today; }
+            double sprung = _breadcrumb.Count == 0 ? 0
+                : NavGeo.Haversine(_breadcrumb[^1].lat, _breadcrumb[^1].lon, loc.Latitude, loc.Longitude);
+            // Riesensprung (> 2 km) zwischen zwei Fixes = Lücke/Glitch (App pausiert, woanders fortgesetzt):
+            // NICHT als Linie verbinden – die Spur ab hier frisch beginnen (keine Linie quer über die Karte).
+            if (sprung > 2000) _breadcrumb.Clear();
+            if (_breadcrumb.Count == 0 || sprung > 8)
             {
                 _breadcrumb.Add((loc.Latitude, loc.Longitude));
                 // Deckel: bei Überlauf den ältesten Block in EINEM Rutsch verwerfen (amortisiert O(1)
@@ -171,7 +195,10 @@ public partial class MainPage
         {
             if (!_seiteLebt) return;   // Seite verlassen → keine Karten-/UI-Zugriffe mehr (fire-and-forget-Schutz)
             PositionZeichnen();
-            if (breadcrumbNeu) BreadcrumbZeichnen();
+            // Breadcrumb-Neuaufbau ist O(n) → nur gedrosselt (≤ alle 2,5 s) neu zeichnen; die Punkte
+            // selbst werden weiter sofort gesammelt (oben unter _breadcrumbLock), nur das Zeichnen wartet.
+            if (breadcrumbNeu && Environment.TickCount64 - _letztBreadcrumbMs > BreadcrumbRedrawMs)
+            { _letztBreadcrumbMs = Environment.TickCount64; BreadcrumbZeichnen(); }
             double kurs = _kompassHatWert ? _heading : _gpsKurs;   // ohne Kompass-HW (N55): GPS-Fahrtrichtung
             // Route-VORSCHAU (Route liegt, aber Navigation noch nicht gestartet): die ganze Route bleibt
             // gefittet stehen – NICHT auf die Position folgen/zoomen/drehen (sonst rückt das Ziel aus dem Bild).

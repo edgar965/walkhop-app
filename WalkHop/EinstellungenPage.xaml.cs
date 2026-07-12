@@ -70,6 +70,7 @@ public partial class EinstellungenPage : ContentPage
         L.Geaendert += SpracheAngewendet;
         CacheGroesseAnzeigen();
         StandardPunktAnzeigen();
+        ProtokollGroesseAnzeigen();
         try { await Auth.AktualisiereAsync(); } catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Konto laden", ex); }
         KontoAnzeigen();
     }
@@ -116,6 +117,36 @@ public partial class EinstellungenPage : ContentPage
     {
         Meldung.IgnorierteZuruecksetzen();
         await DisplayAlert(L.T("nav_einstellungen"), L.T("einst_fehler_reset_ok"), L.T("ok"));
+    }
+
+    // Diagnose-Protokoll an den Server senden; bei Erfolg wird es lokal gelöscht.
+    private async void OnLogsSenden(object? sender, EventArgs e)
+    {
+        LogsSendenBtn.IsEnabled = false;
+        try
+        {
+            if (Protokoll.Groesse() == 0)
+            { await DisplayAlert(L.T("einst_sec_protokoll"), L.T("protokoll_leer"), L.T("ok")); return; }
+            bool ok = await Protokoll.AnServerSendenAsync();
+            await DisplayAlert(L.T("einst_sec_protokoll"),
+                L.T(ok ? "protokoll_gesendet" : "protokoll_fehler"), L.T("ok"));
+        }
+        finally { LogsSendenBtn.IsEnabled = true; ProtokollGroesseAnzeigen(); }
+    }
+
+    private async void OnLogsLoeschen(object? sender, EventArgs e)
+    {
+        bool ja = await DisplayAlert(L.T("einst_sec_protokoll"), L.T("protokoll_loeschen_frage"),
+            L.T("einst_logs_loeschen"), L.T("abbrechen"));
+        if (!ja) return;
+        Protokoll.Loesche();
+        ProtokollGroesseAnzeigen();
+    }
+
+    private void ProtokollGroesseAnzeigen()
+    {
+        long b = Protokoll.Groesse();
+        ProtokollGroesse.Text = b == 0 ? L.T("protokoll_leer") : L.T("protokoll_groesse", b / 1024.0);
     }
 
     private void OnSpracheWechseln(object? sender, TappedEventArgs e)

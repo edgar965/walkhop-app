@@ -83,12 +83,14 @@ public partial class MainPage
         if (wp == null) return;
         if (Environment.TickCount64 - _letztLangdruckMs < 700) return;   // Langdruck hat das Menü gerade gezeigt
         var (lon, lat) = ZuGeo(wp.X, wp.Y);
-        // In der Vorschau mit mehreren Routenvorschlägen: Tipp auf eine Linie wählt diesen Vorschlag
-        // (statt das Kontextmenü zu öffnen) – „durch Klick auf einen Vorschlag kann ich ihn navigieren".
+        // In der Vorschau mit mehreren Routenvorschlägen: Tipp auf eine ANDERE Vorschlagslinie wählt
+        // diese aus. Tipp auf die bereits gewählte Route (oder daneben) fällt durch zum Kontextmenü –
+        // sonst wäre der ganze Routen-Korridor eine „tote Zone", in der „Hierhin navigieren" nichts täte.
+        // (Ein Langdruck öffnet das Menü ohnehin auch über einer Linie.)
         if (!_navAktiv && _vorschlaege.Count > 1)
         {
             int idx = NaechsterVorschlag(lat, lon);
-            if (idx >= 0) { if (idx != _vorschlagWahl) VorschlagWaehlen(idx, fit: false); return; }
+            if (idx >= 0 && idx != _vorschlagWahl) { VorschlagWaehlen(idx, fit: false); return; }
         }
         await KontextmenueZeigen(lat, lon);
     }
@@ -154,18 +156,7 @@ public partial class MainPage
     }
 
     // ---- Richtungspfeil (Schaft + Spitze in Routenfarbe) – Port aus navi_route.js/navi.js ----
-    // Punkt + Segmentindex an kumulativer Distanz `e` (Meter) entlang der Route.
-    private static (int idx, double lat, double lon) PunktBeiEntlang(
-        List<(double lat, double lon)> route, double[] kum, double e)
-    {
-        int i = 0;
-        while (i < kum.Length - 1 && kum[i + 1] < e) i++;
-        double seg = Math.Max(1, kum[i + 1] - kum[i]);
-        double t = Math.Clamp((e - kum[i]) / seg, 0, 1);
-        var a = route[i];
-        var b = route[Math.Min(i + 1, route.Count - 1)];
-        return (i, a.lat + (b.lat - a.lat) * t, a.lon + (b.lon - a.lon) * t);
-    }
+    // Punkt + Segmentindex an kumulativer Distanz entlang der Route: NavGeo.PunktBeiEntlang (testbar).
 
     // Routen-Ausschnitt ab Distanz `von` (Meter) über `laenge` Meter nach VORNE –
     // inklusive aller Stützpunkte, damit der Pfeil sich bei Kurven mitbiegt.
@@ -178,8 +169,8 @@ public partial class MainPage
         von = Math.Clamp(von, 0, gesamt);
         double bis = Math.Min(von + Math.Max(0, laenge), gesamt);
         if (bis - von < 0.5) return pts;               // praktisch am Ziel → nichts zeigen
-        var s = PunktBeiEntlang(route, kum, von);
-        var e = PunktBeiEntlang(route, kum, bis);
+        var s = NavGeo.PunktBeiEntlang(route, kum, von);
+        var e = NavGeo.PunktBeiEntlang(route, kum, bis);
         pts.Add((s.lat, s.lon));
         for (int i = s.idx + 1; i <= e.idx; i++) pts.Add(route[i]);
         pts.Add((e.lat, e.lon));
@@ -201,10 +192,15 @@ public partial class MainPage
 
     // Richtungspfeil mitführen: Schaft in Routenfarbe (Linie + weißes Casing) entlang der Route
     // ab der Position nach vorne, der in einer Pfeilspitze (Chevron) endet.
-    private void RichtungPfeilAktualisieren(double entlang)
+    private void RichtungPfeilAktualisieren(double entlang, bool erzwingen = false)
     {
         _letztEntlang = entlang;   // für Neuzeichnen bei Zoom (Pfeilspitze ist pixelgroß)
         if (!_navAktiv || _navPunkte == null || _navKum == null || _navPunkte.Count < 2) { RichtungAus(); return; }
+        // Nicht bei jedem GPS-Takt neu bauen: nur wenn die Position sich entlang der Route spürbar (>2 m)
+        // bewegt hat (darunter ist die Pfeilform praktisch identisch). Bei Zoom (erzwingen) immer neu,
+        // weil die Pfeilspitze pixelgroß ist und auf die neue Auflösung passen muss.
+        if (!erzwingen && _pfeilEntlangGezeichnet >= 0 && Math.Abs(entlang - _pfeilEntlangGezeichnet) < 2) return;
+        _pfeilEntlangGezeichnet = entlang;
         double laenge = VorausMin;
         double dAbbieg = AbbiegungVoraus(entlang);
         if (dAbbieg <= VorausAbbieg)
@@ -249,6 +245,7 @@ public partial class MainPage
 
     private void RichtungAus()
     {
+        _pfeilEntlangGezeichnet = -1;   // nach dem Löschen den nächsten Aufbau erzwingen (kein Skip)
         if (_richtungLayer.Features.Any())
         { _richtungLayer.Features = new List<IFeature>(); _richtungLayer.DataHasChanged(); }
     }
@@ -288,12 +285,12 @@ public partial class MainPage
         _richtungLayer.Enabled = true;
         _tourLayer.Enabled = true;
         _breadcrumbLayer.Enabled = true;
-        // Pfeilspitze ist pixelgroß → einmal auf die neue Auflösung neu zeichnen.
-        if (_navAktiv && _navPunkte != null) RichtungPfeilAktualisieren(_letztEntlang);
+        // Pfeilspitze ist pixelgroß → einmal auf die neue Auflösung neu zeichnen (erzwingen, kein Skip).
+        if (_navAktiv && _navPunkte != null) RichtungPfeilAktualisieren(_letztEntlang, erzwingen: true);
         _map.RefreshGraphics();
     }
 
-    // Web-Pfeilform (navi.js) für die lila Richtungsspitze: lokale Punkte, Ursprung = Drehzentrum, y = vorwärts.
+    // Web-Pfeilform (navi.js) für die Richtungsspitze (Routenfarbe): lokale Punkte, Ursprung = Drehzentrum, y = vorwärts.
     private static readonly (double x, double y)[] RichtungsSpitze =
         { (0, 15), (14, -13), (0, -5), (-14, -13) };                                 // pfeilSpitzeSvg
 
