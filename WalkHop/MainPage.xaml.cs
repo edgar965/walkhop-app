@@ -102,6 +102,7 @@ public partial class MainPage : ContentPage
     private bool _vektorenVerborgen;
     private IDispatcherTimer? _zoomTimer;
     private bool _gpsLaeuft, _kompassLaeuft, _berechtigungGeprueft;
+    private bool _kompassMoeglich = true;   // false, sobald das Gerät nachweislich keinen Kompass-Sensor hat (kein weiteres Start-Versuchen)
     private bool _positionsSchleifeLaeuft;   // genau eine Live-Positions-Schleife (umgeht den 50-m-Distanzfilter)
     private long _letztGpsLogMs = -100000;   // Drosselung der GPS-Diagnose ins Protokoll
     private volatile bool _seiteLebt;        // Seite sichtbar (OnAppearing…OnDisappearing): Schutz für fire-and-forget-UI-Zugriffe

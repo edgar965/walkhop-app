@@ -22,6 +22,13 @@ internal static class Protokoll
     internal static string Pfad => Path.Combine(FileSystem.AppDataDirectory, "walkhop.log");
     private static bool _registriert;
 
+    // Auto-Versand: Fehler/Crashes sollen OHNE manuellen „Logs an Server"-Knopf beim Server ankommen.
+    private static readonly object _sendeSperre = new();
+    private static long _letztAutoSendeMs = -600_000;      // lange her → erster Auto-Versand ohne Wartezeit
+    private static bool _autoSendeAusstehend;
+    private const int AutoSendeDebounceMs = 4000;          // kurz aufeinanderfolgende Fehler zu EINEM Upload bündeln
+    private const int AutoSendeMindestabstandMs = 60_000;  // höchstens ~1 Auto-Upload/Minute (kein Server-Spam)
+
     // [ModuleInitializer] läuft auf Android/FastDev NICHT zuverlässig → zusätzlich explizit aus MauiProgram
     // aufgerufen. Der Guard macht die Registrierung idempotent (kein doppeltes Anhängen der Crash-Handler).
     [ModuleInitializer]
@@ -29,18 +36,61 @@ internal static class Protokoll
     {
         if (_registriert) return;
         _registriert = true;
-        // Jeder über Meldung gemeldete Fehler landet zusätzlich im Protokoll.
+        // Jeder über Meldung gemeldete Fehler landet im Protokoll UND wird zeitnah automatisch an den Server gesendet.
         Meldung.Protokollierer = (kontext, ex) =>
+        {
             Schreib("FEHLER", ex == null ? kontext : $"{kontext} — {ex.GetType().Name}: {ex.Message}\n{ex}");
+            AutoSendePlanen();
+        };
         Meldung.Notierer = Schreib;
 
-        // Unbehandelte Ausnahmen (Crashes) global abfangen und noch vor dem Absturz wegschreiben.
+        // Unbehandelte Ausnahmen (Crashes) global abfangen und noch vor dem Absturz wegschreiben. Der Versand
+        // kann beim harten Crash nicht mehr durchlaufen (Prozess stirbt) → er wird beim NÄCHSTEN Start
+        // automatisch nachgeholt (siehe unten). Bei der unbeobachteten Task-Ausnahme lebt der Prozess → sofort.
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
             Schreib("CRASH", (e.ExceptionObject as Exception)?.ToString() ?? e.ExceptionObject?.ToString() ?? "Unbekannter Absturz");
         TaskScheduler.UnobservedTaskException += (_, e) =>
-        { Schreib("CRASH", "Unbeobachtete Task-Ausnahme:\n" + e.Exception); e.SetObserved(); };
+        { Schreib("CRASH", "Unbeobachtete Task-Ausnahme:\n" + e.Exception); AutoSendePlanen(); e.SetObserved(); };
 
+        // Lag beim Start noch ein NICHT gesendetes Protokoll der Vorsitzung vor, wurde die App vorher hart
+        // beendet – Crash ODER iOS-Hintergrund-Kill der laufenden Navigation („Navigation bricht ab", ohne
+        // sauberes „beendet"). Genau dieses Log automatisch nachreichen, damit solche Abbrüche ohne Zutun ankommen.
+        bool hatteVorlauf = Groesse() > 0;
         Schreib("APP", $"Start – {Kopf()}");
+        if (hatteVorlauf) VorsitzungsLogNachreichen();
+    }
+
+    /// <summary>Plant einen entprellten, ratenbegrenzten Auto-Upload des Protokolls (fire-and-forget).
+    /// Angestoßen bei Fehlern/Crashes. Bündelt kurz aufeinanderfolgende Fehler zu EINEM Upload und begrenzt
+    /// die Frequenz, damit der Server nicht mit Uploads geflutet wird.</summary>
+    private static void AutoSendePlanen()
+    {
+        lock (_sendeSperre) { if (_autoSendeAusstehend) return; _autoSendeAusstehend = true; }
+        _ = AutoSendeGleich();
+    }
+
+    private static async Task AutoSendeGleich()
+    {
+        try
+        {
+            await Task.Delay(AutoSendeDebounceMs);   // kurz sammeln → weitere Fehler mitschicken
+            long seit = Environment.TickCount64 - _letztAutoSendeMs;
+            if (seit < AutoSendeMindestabstandMs) await Task.Delay((int)(AutoSendeMindestabstandMs - seit));
+        }
+        finally { lock (_sendeSperre) _autoSendeAusstehend = false; }
+        _letztAutoSendeMs = Environment.TickCount64;
+        try { await AnServerSendenAsync(); } catch (Exception e) { System.Diagnostics.Debug.WriteLine(e); }
+    }
+
+    /// <summary>Reicht das (nicht gesendete) Protokoll der vorherigen Sitzung nach dem Start nach – mit kurzer
+    /// Verzögerung, damit Netzwerk/Anmeldung bereit sind und der Kaltstart nicht darum konkurriert.</summary>
+    private static void VorsitzungsLogNachreichen()
+    {
+        _ = Task.Run(async () =>
+        {
+            try { await Task.Delay(10_000); await AnServerSendenAsync(); }
+            catch (Exception e) { System.Diagnostics.Debug.WriteLine(e); }
+        });
     }
 
     // Kurzer Geräte-/Versions-Kopf für Startmarke + Upload-Metadaten.

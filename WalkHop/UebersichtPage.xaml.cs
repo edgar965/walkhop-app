@@ -69,6 +69,7 @@ public partial class UebersichtPage : ContentPage
     private bool _folgen, _fahrtrichtung;
     private bool _zentrierenNaechsterFix = true;   // erster GPS-Fix → auf Position zentrieren (Norden oben)
     private bool _gpsLaeuft, _kompassLaeuft, _positionsSchleifeLaeuft;
+    private bool _kompassMoeglich = true;   // false, sobald das Gerät nachweislich keinen Kompass-Sensor hat
     private volatile bool _userBeruehrt;   // Finger berührt gerade die Karte → Kamera nicht bewegen
     private long _letzteBeruehrungMs;
     /// <summary>Kamera darf programmatisch bewegt werden (kein aktiver Touch + kurze Nachlauf-Sperre;

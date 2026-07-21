@@ -134,6 +134,7 @@ public partial class MainPage
         _zielAngesagt = false;
         _pfeilEntlangGezeichnet = -1;   // neue Route-Geometrie → Richtungspfeil beim nächsten Fix neu bauen (nicht am alten Verlauf hängen)
         NaviPanel.IsVisible = true;
+        RichtungBtn.IsVisible = true;   // „Richtung umkehren" verfügbar, sobald eine Route/Tour liegt (Vorschau wie Lauf)
         _ = HoeheLaden(punkte);   // Höhenprofil der (gewählten) Route IMMER laden – sonst steht beim Vorschlag-Wechsel ein falsches Profil
         DistNaechstLabel.Text = "";
         NaviInfoLabel.Text = infoText;
@@ -512,6 +513,7 @@ public partial class MainPage
         _routeLayer.DataHasChanged();
         RichtungAus();   // Richtungspfeil entfernen
         AnweisungBox.IsVisible = false;
+        RichtungBtn.IsVisible = false;   // ohne Route kein Richtungs-Umkehr-Knopf
         NaviPanel.IsVisible = false;
         SheetSetzen(false, animiert: false);   // Schublade eingeklappt zurücksetzen
         Status(null);
@@ -539,9 +541,12 @@ public partial class MainPage
     private async void OnUmkehr(object? sender, EventArgs e)
     {
         if (_navPunkte == null) return;
+        Meldung.Notiz("NAV", $"Navigationsrichtung umkehren ({_navPunkte.Count} Pkt, warAktiv={_navAktiv})");
         var umgekehrt = new List<(double lat, double lon)>(_navPunkte);
         umgekehrt.Reverse();
-        await NavStartGetracet(umgekehrt, L.T("mp_route_umgekehrt"), _ankunftText, fit: true);   // korrekte Manöver rückwärts
+        // Landet bewusst in der VORSCHAU (Start-Knopf): die umgekehrte Route wird neu getracet (korrekte
+        // Rückwärts-Manöver) und kann dann in der Gegenrichtung gestartet werden – für Ziel-Routen wie Touren.
+        await NavStartGetracet(umgekehrt, L.T("mp_route_umgekehrt"), _ankunftText, fit: true);
         Status(L.T("st_route_umgekehrt"), autoAus: true);
     }
 

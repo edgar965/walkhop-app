@@ -122,6 +122,21 @@
             </HorizontalStackLayout>
         </Border>
 
+        <!-- Navigationsrichtung umkehren (oben mittig): dieselbe Route in die Gegenrichtung wandern.
+             Sichtbar, sobald eine Route/Tour geladen ist (Vorschau ODER Lauf) – für Ziel-Routen wie für Touren. -->
+        <Border x:Name="RichtungBtn" AutomationId="navi_richtung" IsVisible="False" HorizontalOptions="Center" VerticalOptions="Start"
+                Margin="0,10,0,0" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
+                Padding="13,7" StrokeShape="RoundRectangle 22">
+            <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="8" Offset="0,3" /></Border.Shadow>
+            <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnUmkehr" /></Border.GestureRecognizers>
+            <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                <!-- Zwei gegenläufige Pfeile = „Richtung umkehren" -->
+                <Path VerticalOptions="Center" Stroke="#0f172a" StrokeThickness="2.2" StrokeLineCap="Round" StrokeLineJoin="Round"
+                      WidthRequest="22" HeightRequest="22" Data="M7 4 L7 20 M4 17 L7 20 L10 17 M17 20 L17 4 M14 7 L17 4 L20 7" />
+                <Label Text="{loc:Translate mp_richtung}" FontSize="13" FontAttributes="Bold" TextColor="#0f172a" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+        </Border>
+
         <!-- Alternativroute-Chip -->
         <Button x:Name="AltChip" IsVisible="False" Clicked="OnAltWaehlen" HorizontalOptions="Center"
                 VerticalOptions="Start" Margin="0,92,0,0" BackgroundColor="#475569" TextColor="White"
@@ -238,8 +253,7 @@
                                     BackgroundColor="#c8a06a" TextColor="White" CornerRadius="10" />
                             <Button Text="{loc:Translate mp_zum_naechsten}" Clicked="OnZumNaechsten"
                                     BackgroundColor="#0d9488" TextColor="White" CornerRadius="10" />
-                            <Button x:Name="UmkehrBtn" Text="{loc:Translate mp_route_umkehren}" Clicked="OnUmkehr"
-                                    BackgroundColor="#334155" TextColor="White" CornerRadius="10" />
+                            <!-- „Route umkehren" sitzt jetzt als Icon-Knopf oben im Navigationsfenster (RichtungBtn). -->
                         </VerticalStackLayout>
                     </VerticalStackLayout>
                 </ScrollView>

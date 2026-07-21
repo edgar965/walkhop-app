@@ -13,6 +13,14 @@
 	<string>Für die Navigation wird dein Standort benötigt, um deine Position auf der Karte zu zeigen.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Der Kompass (Fahrtrichtung) nutzt die Bewegungssensoren, um die Karte auszurichten.</string>
+	<!-- Hintergrund-Standort: damit die Turn-by-Turn-Navigation NICHT abbricht, wenn der Bildschirm
+	     gesperrt wird oder das Handy in der Tasche steckt. Ohne diesen Modus suspendiert iOS die App
+	     im Hintergrund, das GPS steht und iOS beendet die App später (Navigation „bricht ab"). Mit
+	     „When In Use" + allowsBackgroundLocationUpdates reicht das für die Navigation (blaue Statusleiste). -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIDeviceFamily</key>

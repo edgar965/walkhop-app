@@ -44,6 +44,8 @@ public partial class MainPage
         // Darum sofort die letzte bekannte Position zeigen und dann live nachführen.
         _ = ErstFixHolen();
         _ = PositionsSchleife();
+        // Hinweis: Das app-weite Dauer-GPS (inkl. Hintergrund) läuft über DauerGps/HintergrundStandort,
+        // gestartet beim App-Start – NICHT seitengebunden, damit es beim Seitenwechsel nicht abreißt.
     }
 
     /// <summary>Zeigt SOFORT die zuletzt bekannte Position an (instant, ohne auf einen frischen
@@ -118,7 +120,7 @@ public partial class MainPage
 
     private void SensorenStoppen()
     {
-        _gpsLaeuft = false;   // beendet die Live-Positions-Schleife
+        _gpsLaeuft = false;   // beendet die Live-Positions-Schleife (nur Anzeige; das app-weite Dauer-GPS läuft weiter)
         _breadcrumbTimer?.Stop();   // ausstehende verzögerte Breadcrumb-Zeichnung abbrechen
         try { Geolocation.Default.StopListeningForeground(); } catch (Exception ex) { Debug.WriteLine(ex); }
         Geolocation.Default.LocationChanged -= AufPosition;
@@ -145,9 +147,18 @@ public partial class MainPage
         if (Environment.TickCount64 - _letztGpsLogMs > 3000)   // Diagnose ins Protokoll (gedrosselt)
         {
             _letztGpsLogMs = Environment.TickCount64;
-            Meldung.Notiz("GPS", $"Fix {loc.Latitude:F5},{loc.Longitude:F5} acc={loc.Accuracy:0}m alter={alter.TotalMinutes:0.0}min → {(verwerfen ? "VERWORFEN" : "ok")}");
+            // mem = verwalteter Heap (steigt er über die Zeit stetig → Speicherleck als Crash-Ursache);
+            // komp = Kompass hat Wert / Sensor läuft (bestätigt aus der Ferne, ob Bug „Karte dreht nicht" gefixt ist).
+            long memMb = GC.GetTotalMemory(false) / (1024 * 1024);
+            bool kompMon = false; try { kompMon = Compass.Default.IsMonitoring; } catch (Exception ex) { Debug.WriteLine(ex); }
+            Meldung.Notiz("GPS", $"Fix {loc.Latitude:F5},{loc.Longitude:F5} acc={loc.Accuracy:0}m alter={alter.TotalMinutes:0.0}min mem={memMb}MB komp={(_kompassHatWert ? "ja" : "nein")}/{(kompMon ? "an" : "aus")} → {(verwerfen ? "VERWORFEN" : "ok")}");
         }
         if (verwerfen) { GpsLog($"Fix verworfen (veraltet {alter.TotalMinutes:0} min)"); return; }
+#if !IOS
+        // Fortlaufend PERSISTENT speichern (Android/Windows). Auf iOS übernimmt das der app-weite
+        // HintergrundStandort-Manager (speichert auch im Hintergrund) – hier NICHT nochmal (Doppelung).
+        GpsSpeicher.Speichere(loc.Latitude, loc.Longitude, loc.Accuracy ?? 0, loc.Timestamp);
+#endif
         // Felder dürfen vom Worker-Thread gesetzt werden; UI/Karte nur auf dem UI-Thread.
         // Fahrtrichtung aus der BEWEGUNG berechnen (loc.Course ist auf vielen Geräten leer; N55 hat
         // keinen Kompass). Erst ab ~6 m → stabile Richtung, kein Zittern im Stand.
@@ -195,6 +206,7 @@ public partial class MainPage
         MainThread.BeginInvokeOnMainThread(() =>
         {
             if (!_seiteLebt) return;   // Seite verlassen → keine Karten-/UI-Zugriffe mehr (fire-and-forget-Schutz)
+            KompassSicherstellen();   // Kompass-Monitoring nach Seitenwechsel selbstheilend sicherstellen (iOS-Reihenfolge-Race)
             PositionZeichnen();
             // Breadcrumb-Neuaufbau ist O(n) → nur gedrosselt (≤ alle 2,5 s) neu zeichnen; die Punkte
             // selbst werden weiter sofort gesammelt (oben unter _breadcrumbLock), nur das Zeichnen wartet.
@@ -243,6 +255,31 @@ public partial class MainPage
             if (!Compass.Default.IsMonitoring) Compass.Default.Start(SensorSpeed.UI);
             _kompassLaeuft = true;
         }
+        catch (FeatureNotSupportedException) { _kompassMoeglich = false; Meldung.Notiz("KOMPASS", "Gerät hat keinen Kompass-Sensor"); }
+        catch (Exception ex) { Debug.WriteLine(ex); }
+    }
+
+    /// <summary>Stellt bei JEDEM Fix sicher, dass das Kompass-Monitoring läuft – selbstheilend.
+    /// Grund: <see cref="Compass"/>.Default ist ein prozessweiter Singleton. Beim Seitenwechsel
+    /// Übersicht → Navigation erscheint auf iOS die neue Seite VOR dem OnDisappearing der alten;
+    /// die Übersichtsseite stoppt den Kompass dann NACHDEM diese Seite ihn gestartet hat. Ergebnis:
+    /// unser Handler ist zwar abonniert, aber das Monitoring ist aus → keine Kompass-Ereignisse, die
+    /// Karte dreht nicht mit und der Blickrichtungs-Beam bleibt starr (zeigt „immer nach oben").
+    /// Der <see cref="_kompassLaeuft"/>-Guard in <see cref="KompassStart"/> verhindert das Neustarten –
+    /// darum hier direkt am echten Monitoring-Zustand ansetzen (billig: meist nur ein IsMonitoring-Check).</summary>
+    private void KompassSicherstellen()
+    {
+        if (!_seiteLebt || !_kompassMoeglich) return;
+        try
+        {
+            if (Compass.Default.IsMonitoring) return;   // läuft bereits → Normalfall, nichts tun
+            Compass.Default.ReadingChanged -= AufKompass;
+            Compass.Default.ReadingChanged += AufKompass;
+            Compass.Default.Start(SensorSpeed.UI);
+            _kompassLaeuft = true;
+            Meldung.Notiz("KOMPASS", "Monitoring war aus → neu gestartet");
+        }
+        catch (FeatureNotSupportedException) { _kompassMoeglich = false; Meldung.Notiz("KOMPASS", "Gerät hat keinen Kompass-Sensor"); }
         catch (Exception ex) { Debug.WriteLine(ex); }
     }
 

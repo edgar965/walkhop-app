@@ -15,6 +15,7 @@ public partial class App : Application
 		// Beim Start: Token/anonymes Geräte-Konto sicherstellen + Reste hochladen.
 		window.Created += async (_, _) =>
 		{
+			DauerGps.Starten();   // GPS empfangen + persistent speichern, solange die App an ist (app-weit, iOS auch im Hintergrund)
 			await Auth.InitAsync();
 			await AufnahmeService.UploadeAusstehendAsync();
 			// Cold-Start: ein evtl. beim Start eingegangener Deep-Link (walkhop://g/<code>) wird

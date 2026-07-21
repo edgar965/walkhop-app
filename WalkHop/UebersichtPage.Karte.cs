@@ -222,11 +222,15 @@ public partial class UebersichtPage
         }
         else _letzteKursGeo = (loc.Latitude, loc.Longitude);
         _letzteGeo = (loc.Latitude, loc.Longitude);
+#if !IOS
+        GpsSpeicher.Speichere(loc.Latitude, loc.Longitude, loc.Accuracy ?? 0, loc.Timestamp);   // fortlaufend persistent (iOS: app-weiter Manager)
+#endif
         GruppeLive.Sende(loc.Latitude, loc.Longitude);   // eigene Position in die Gruppe (gedrosselt, wenn aktiv)
         var (x, y) = SphericalMercator.FromLonLat(loc.Longitude, loc.Latitude);
         _letztePos = new MPoint(x, y);
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            KompassSicherstellen();   // Kompass-Monitoring nach Seitenwechsel selbstheilend sicherstellen (iOS-Reihenfolge-Race)
             PositionZeichnen();
             double kurs = _kompassHatWert ? _heading : _gpsKurs;   // ohne Kompass-HW (N55): GPS-Fahrtrichtung
             if (_zentrierenNaechsterFix)
@@ -260,6 +264,26 @@ public partial class UebersichtPage
             if (!Compass.Default.IsMonitoring) Compass.Default.Start(SensorSpeed.UI);
             _kompassLaeuft = true;
         }
+        catch (FeatureNotSupportedException) { _kompassMoeglich = false; }
+        catch (Exception ex) { Debug.WriteLine(ex); }
+    }
+
+    /// <summary>Stellt bei jedem Fix sicher, dass das Kompass-Monitoring läuft (selbstheilend). Der
+    /// Kompass ist ein prozessweiter Singleton: beim Seitenwechsel Navigation → Übersicht kann die
+    /// verlassene Seite ihn stoppen, NACHDEM diese Seite ihn gestartet hat (iOS: neue Seite erscheint
+    /// vor dem Disappearing der alten). Dann bleibt der Beam starr. Billig: meist nur ein IsMonitoring-Check.</summary>
+    private void KompassSicherstellen()
+    {
+        if (!_gpsLaeuft || !_kompassMoeglich) return;   // Seite verlassen (SensorenStoppen setzt _gpsLaeuft=false) → nicht neu starten
+        try
+        {
+            if (Compass.Default.IsMonitoring) return;
+            Compass.Default.ReadingChanged -= AufKompass;
+            Compass.Default.ReadingChanged += AufKompass;
+            Compass.Default.Start(SensorSpeed.UI);
+            _kompassLaeuft = true;
+        }
+        catch (FeatureNotSupportedException) { _kompassMoeglich = false; }
         catch (Exception ex) { Debug.WriteLine(ex); }
     }
 
