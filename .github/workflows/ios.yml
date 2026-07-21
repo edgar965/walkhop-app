@@ -36,10 +36,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Xcode 26.5 wählen
+      - name: Xcode 26.6 wählen
+        # .NET-iOS-SDK (26.5.10301+) verlangt Xcode 26.6; der Runner hat es installiert
+        # (Default ist noch 26.5). Bei künftigen SDK-Bumps hier nachziehen.
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '26.5'
+          xcode-version: '26.6'
 
       - name: .NET einrichten
         uses: actions/setup-dotnet@v4
