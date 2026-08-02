@@ -251,7 +251,7 @@ public class EinstFunktionNavigationTests : EinstFunktionBasis
     public void Sprachnavigation_Ton_Schalter_toggelt() => SchalterToggelt("Sprachnavigation");
 
     [Test]
-    public void Benachrichtigungstoene_Schalter_toggelt() => SchalterToggelt("Benachrichtigungstöne");
+    public void Benachrichtigungstoene_Schalter_toggelt() => SchalterToggelt("Abbiege-Töne");   // reale Label-Beschriftung der Benachrichtigungstöne-Zeile
 
     // Navigationssprache umschalten – ANDERS als die App-Sprache darf das die Oberfläche
     // NICHT verändern (deutscher Abschnitt 'FORTBEWEGUNG' bleibt deutsch).
@@ -259,7 +259,10 @@ public class EinstFunktionNavigationTests : EinstFunktionBasis
     public void Navi_Sprache_schaltet_ohne_Oberflaechenwechsel()
     {
         EinstTab("Navigation");
-        Assert.That(DaText("Deutsch"), Is.True, "Navi-Sprache sollte zu Beginn Deutsch sein");
+        // Vorbedingung normalisieren: die Navi-Sprache ist eine EIGENE, persistierte Einstellung –
+        // ein früherer Lauf kann sie (bei noReset) auf English hinterlassen haben. Erst sicher auf Deutsch.
+        if (!DaText("Deutsch") && DaText("English")) TippInSicht("English");
+        Assert.That(DaText("Deutsch"), Is.True, "Navi-Sprache sollte (nach Normalisierung) Deutsch sein");
         TippInSicht("Deutsch");
         Assert.That(DaText("English"), Is.True, "Navi-Sprache sollte auf 'English' wechseln");
         Assert.That(DaText("FORTBEWEGUNG"), Is.True, "Oberfläche darf sich NICHT geändert haben (Abschnitt deutsch)");

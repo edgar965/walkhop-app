@@ -67,7 +67,7 @@ public partial class AppShell : Shell
 	private async void OnLogout(object? sender, EventArgs e)
 	{
 		FlyoutIsPresented = false;
-		bool ja = await DisplayAlert(L.T("logout_titel"), L.T("logout_frage"), L.T("logout_titel"), L.T("abbrechen"));
+		bool ja = await DisplayAlertAsync(L.T("logout_titel"), L.T("logout_frage"), L.T("logout_titel"), L.T("abbrechen"));
 		if (!ja) return;
 		MainPage.AktiveSitzungBeenden();
 		await Auth.AbmeldenAsync();

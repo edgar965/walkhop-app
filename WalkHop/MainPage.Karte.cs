@@ -102,7 +102,7 @@ public partial class MainPage
         var optionen = new List<string> { hierhin, vonHier, zumPlan };
         optionen.Add(Standort.EntfernungZeile(lat, lon, _letzteGeo));   // Info-Zeile vor „Abbrechen"
         // „Bereich offline laden" ist in Einstellungen → Karte umgezogen (dort als „Umgebung offline laden").
-        string wahl = await DisplayActionSheet(null, L.T("abbrechen"), null, optionen.ToArray());
+        string wahl = await DisplayActionSheetAsync(null, L.T("abbrechen"), null, optionen.ToArray());
         if (wahl == hierhin) await RouteZu(lat, lon);
         else if (wahl == vonHier)
         {
@@ -253,6 +253,11 @@ public partial class MainPage
     // Bei spürbarer Zoom-Änderung (>5 %) den Chevron in neuer Pixelgröße nachzeichnen.
     private void ViewportGeaendert()
     {
+        // Manuelle Geste (Finger zoomt/schwenkt die Karte) → „Folgen" lösen. Sonst zentriert die
+        // Live-GPS-Schleife die Karte sofort wieder auf die eigene Position → der Zoom „springt zurück".
+        // Über !KameraFrei (statt rohem _userBeruehrt): so löst ein PROGRAMMATISCHES Zurückzentrieren nach
+        // verlorenem TouchEnded (dann greift KameraFreis 4-s-Auto-Reset) das Folgen NICHT fälschlich.
+        if (!KameraFrei && _folgen) { _folgen = false; KompassIconAktualisieren(); }
         double res = _map.Navigator.Viewport.Resolution;
         // Nur bei echtem ZOOM (Auflösungsänderung) eingreifen – Pan/Zentrieren (GPS-Folgen) ignorieren.
         if (!KarteHelfer.ZoomWesentlich(res, _letzteZoomRes)) return;
@@ -392,7 +397,7 @@ public partial class MainPage
         {
             string suchen = L.T("poi_nach_name");
             var optionen = ziele.Select(z => "📍 " + z.name).Append(suchen).ToArray();
-            string wahl = await DisplayActionSheet(L.T("poi_wohin"), L.T("abbrechen"), null, optionen);
+            string wahl = await DisplayActionSheetAsync(L.T("poi_wohin"), L.T("abbrechen"), null, optionen);
             if (string.IsNullOrEmpty(wahl) || wahl == L.T("abbrechen")) return;
             if (wahl != suchen)
             {
@@ -413,14 +418,14 @@ public partial class MainPage
             if (treffer.Count == 0) { Status(L.T("st_nichts_gefunden"), autoAus: true); return; }
             Status(null);
             var namen = treffer.Take(10).Select(t => t.Name).ToArray();
-            string wahl = await DisplayActionSheet(L.T("poi_treffer", treffer.Count), L.T("abbrechen"), null, namen);
+            string wahl = await DisplayActionSheetAsync(L.T("poi_treffer", treffer.Count), L.T("abbrechen"), null, namen);
             var p = treffer.FirstOrDefault(t => t.Name == wahl);
             if (p == null) return;
             var (px, py) = ZuMercator(p.Lat, p.Lon);
             _folgen = false;
             _map.Navigator.CenterOnAndZoomTo(new MPoint(px, py), Aufloesung(ZentrierZoom));
             KompassIconAktualisieren();
-            if (await DisplayAlert(p.Name, L.T("poi_dorthin_navigieren"), L.T("poi_navigieren_btn"), L.T("schliessen")))
+            if (await DisplayAlertAsync(p.Name, L.T("poi_dorthin_navigieren"), L.T("poi_navigieren_btn"), L.T("schliessen")))
                 await RouteZu(p.Lat, p.Lon, p.Name);
         }
         catch (PaywallException)

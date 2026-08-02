@@ -65,7 +65,7 @@ public partial class KontoPage : ContentPage
 
     private async void OnAbmelden(object? sender, EventArgs e)
     {
-        bool ja = await DisplayAlert(L.T("logout_titel"), L.T("abmelden_frage"), L.T("logout_titel"), L.T("abbrechen"));
+        bool ja = await DisplayAlertAsync(L.T("logout_titel"), L.T("abmelden_frage"), L.T("logout_titel"), L.T("abbrechen"));
         if (!ja) return;
         await Auth.AbmeldenAsync();
         Anzeigen();
@@ -74,7 +74,7 @@ public partial class KontoPage : ContentPage
     private async void OnKaufen(object? sender, EventArgs e)
     {
         // Stufe 2: In-App-Kauf (StoreKit/Play Billing). Vorerst Hinweis + Web-Kauf.
-        bool web = await DisplayAlert(L.T("premium_titel"), L.T("premium_text"),
+        bool web = await DisplayAlertAsync(L.T("premium_titel"), L.T("premium_text"),
             L.T("premium_website"), L.T("schliessen"));
         if (web) { try { await Launcher.OpenAsync("https://spin1more.com/konto/"); } catch (Exception ex) { Meldung.Fehler("Website öffnen", ex); } }
     }

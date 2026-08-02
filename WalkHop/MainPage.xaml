@@ -63,22 +63,8 @@
                 </AbsoluteLayout>
             </Border>
 
-            <!-- Gruppe: eigene Live-Position mit der Gruppe teilen + Mitglieder als Marker sehen -->
-            <Border x:Name="GruppeBorder" AutomationId="navi_gruppe" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"
-                    WidthRequest="46" HeightRequest="46" StrokeShape="RoundRectangle 23">
-                <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="8" Offset="0,3" /></Border.Shadow>
-                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnGruppe" /></Border.GestureRecognizers>
-                <Grid HorizontalOptions="Center" VerticalOptions="Center">
-                    <Label x:Name="GruppeIcon" Text="👥" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
-                    <!-- kleine Zahl = Anzahl Mitglieder (nur wenn aktiv) -->
-                    <Border x:Name="GruppeBadge" IsVisible="False" BackgroundColor="#16a34a" StrokeThickness="0"
-                            StrokeShape="RoundRectangle 9" WidthRequest="18" HeightRequest="18"
-                            HorizontalOptions="End" VerticalOptions="Start" TranslationX="6" TranslationY="-6">
-                        <Label x:Name="GruppeBadgeText" Text="" FontSize="10" FontAttributes="Bold" TextColor="White"
-                               HorizontalOptions="Center" VerticalOptions="Center" />
-                    </Border>
-                </Grid>
-            </Border>
+            <!-- Gruppe (Live-Position teilen) ist in die Einstellungen → Tab „Gruppe" gewandert;
+                 kein Karten-Knopf mehr. Mitglieder-Marker zeichnet die Karte weiterhin. -->
 
             <!-- Vollbild -->
             <Border x:Name="VollBorder" AutomationId="navi_vollbild" StrokeThickness="1" Stroke="#e2e8f0" BackgroundColor="White"

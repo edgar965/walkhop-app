@@ -62,6 +62,13 @@ public static class Texte
         ["gruppe_erstellen_btn"] = "Erstellen",
         ["gruppe_teilen"] = "📤 Gruppe teilen",
         ["gruppe_teilen_text"] = "Folge meiner Live-Position in WalkHop (oder im Browser): {0}",
+        // Gruppe als Einstellungen-Tab
+        ["einst_tab_gruppe"] = "Gruppe",
+        ["einst_sec_gruppe"] = "LIVE-GRUPPE",
+        ["einst_gruppe_info"] = "Teile deine Live-Position mit anderen: Erstelle eine Gruppe und lade Freunde per Link ein, oder tritt mit einem Code bei. Alle mit demselben Code sehen sich live auf der Karte.",
+        ["einst_gruppe_inaktiv"] = "Du bist in keiner Gruppe.",
+        ["einst_gruppe_aktiv"] = "Aktive Gruppe: {0}",
+        ["einst_gruppe_beitreten"] = "Gruppe beitreten",
 
         // Abmelden-Dialog (Shell „Beenden" + Konto)
         ["logout_titel"] = "Abmelden",
@@ -306,7 +313,7 @@ public static class Texte
         ["notif_navigation"] = "Navigation",
 
         // ---- UebersichtPage ----
-        ["ue_such_placeholder"] = "Nach Name suchen …",
+        ["ue_such_placeholder"] = "Tour oder Ort suchen …",
         ["ue_suche_kompakt"] = "Suchen",
         ["ue_standort_btn"] = "📍 Standort",
         ["ue_ort_placeholder"] = "Ort/Adresse als Mittelpunkt",
@@ -430,6 +437,13 @@ public static class Texte
         ["gruppe_erstellen_btn"] = "Create",
         ["gruppe_teilen"] = "📤 Share group",
         ["gruppe_teilen_text"] = "Follow my live location in WalkHop (or in the browser): {0}",
+        // Group as a settings tab
+        ["einst_tab_gruppe"] = "Group",
+        ["einst_sec_gruppe"] = "LIVE GROUP",
+        ["einst_gruppe_info"] = "Share your live location with others: create a group and invite friends via link, or join with a code. Everyone with the same code sees each other live on the map.",
+        ["einst_gruppe_inaktiv"] = "You're not in a group.",
+        ["einst_gruppe_aktiv"] = "Active group: {0}",
+        ["einst_gruppe_beitreten"] = "Join group",
 
         // Log-out dialog
         ["logout_titel"] = "Log out",
@@ -674,7 +688,7 @@ public static class Texte
         ["notif_navigation"] = "Navigation",
 
         // UebersichtPage
-        ["ue_such_placeholder"] = "Search by name …",
+        ["ue_such_placeholder"] = "Search tour or place …",
         ["ue_suche_kompakt"] = "Search",
         ["ue_standort_btn"] = "📍 Location",
         ["ue_ort_placeholder"] = "Place/address as center",

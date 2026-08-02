@@ -181,7 +181,7 @@ public partial class UebersichtPage
     private async Task NeueWanderung(double lat, double lon)
     {
         string opt5 = L.T("nw_5km"), opt10 = L.T("nw_10km"), opt15 = L.T("nw_15km"), opt20 = L.T("nw_20km_rad");
-        string dWahl = await DisplayActionSheet(L.T("nw_titel"), L.T("abbrechen"), null, opt5, opt10, opt15, opt20);
+        string dWahl = await DisplayActionSheetAsync(L.T("nw_titel"), L.T("abbrechen"), null, opt5, opt10, opt15, opt20);
         if (string.IsNullOrEmpty(dWahl) || dWahl == L.T("abbrechen")) return;
         double km; string costing;
         if (dWahl == opt5) { km = 5; costing = "pedestrian"; }
@@ -272,24 +272,47 @@ public partial class UebersichtPage
         StatusKurz(L.T("ue_gen_geloescht"), 3);
     }
 
-    private async void OnOrtSuche(object? sender, EventArgs e)
+    // Dediziertes Orts-Eingabefeld (im aufgeklappten Fenster).
+    private void OnOrtSuche(object? sender, EventArgs e) => _ = OrtSuchen((OrtEntry.Text ?? "").Trim());
+
+    // Enter/Such-Knopf im HAUPT-Suchfeld: findet jetzt auch ORTE, nicht nur Tour-Namen. Gibt es
+    // Touren mit diesem Namen, bleibt es eine Namenssuche (der Live-Filter über OnSuche greift bereits).
+    // Sonst wird der Text als Ort/Adresse interpretiert (Geocoding) und die Karte springt dorthin –
+    // der Namensfilter wird gelöst, damit die Touren im Umkreis des Orts sichtbar werden.
+    private async void OnSuchfeldOrt(object? sender, EventArgs e)
     {
-        string q = (OrtEntry.Text ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(q)) return;
+        string q = (Suchfeld.Text ?? "").Trim();
+        if (q.Length < 2) return;
+        if (_alle.Any(t => t.Name.Contains(q, StringComparison.OrdinalIgnoreCase))) return;   // Namenstreffer → Filter behalten
+        // Namensfilter lösen (Umkreis-Touren nach dem Sprung zeigen). Schlägt die Ortssuche fehl,
+        // den vorherigen Filter zurücksetzen – so passen Suchfeld-Text und angezeigte Liste weiter zusammen.
+        string alterFilter = _suche;
+        _suche = "";
+        if (!await OrtSuchen(q)) _suche = alterFilter;
+    }
+
+    // Ortssuche (Geocoding) → Karte dorthin zentrieren, Umkreis-Mittelpunkt setzen, Touren neu filtern.
+    // Gibt true zurück, wenn ein Ort gefunden und angesprungen wurde.
+    private async Task<bool> OrtSuchen(string q)
+    {
+        if (string.IsNullOrWhiteSpace(q)) return false;
         Status(L.T("ue_st_ort_suchen"));
         try
         {
             var treffer = await GeocodeService.SucheAsync(q);
-            if (treffer.Count == 0) { Status(L.T("ue_st_ort_nicht_gefunden")); return; }
+            if (treffer.Count == 0) { Status(L.T("ue_st_ort_nicht_gefunden")); return false; }
             var o = treffer[0];
             var (x, y) = SphericalMercator.FromLonLat(o.Lon, o.Lat);
+            _folgen = false;   // Sprung zum Ort NICHT von der GPS-Folge-Schleife zurückzentrieren lassen
+            KompassIconAktualisieren();
             _map.Navigator.CenterOnAndZoomTo(new MPoint(x, y), Aufloesung(12));
             _zentrum = (o.Lat, o.Lon);
             MittelpunktSetzen(o.Name);
             UmkreisCheck.IsChecked = true;   // aktiviert Umkreis (CheckedChanged → Anwenden)
             Anwenden(L.T("ue_ort_gefunden", o.Name, _radiusKm));   // Status erst NACH dem Zeichnen setzen (kein Überschreiben)
+            return true;
         }
-        catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("ue_st_ortssuche_fehlgeschlagen")); }
+        catch (Exception ex) { Debug.WriteLine(ex); Status(L.T("ue_st_ortssuche_fehlgeschlagen")); return false; }
     }
 
     // ---- Suchzeile ------------------------------------------------------------
@@ -404,7 +427,7 @@ public partial class UebersichtPage
     {
         _sheetOffen = offen;
         double ziel = offen ? 0 : Math.Max(0, _sheetHoehe - SheetPeek);
-        if (animiert) _ = StartSheet.TranslateTo(0, ziel, 220, Easing.CubicOut);
+        if (animiert) _ = StartSheet.TranslateToAsync(0, ziel, 220, Easing.CubicOut);
         else StartSheet.TranslationY = ziel;
     }
 

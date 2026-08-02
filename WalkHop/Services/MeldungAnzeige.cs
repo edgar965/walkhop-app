@@ -69,7 +69,7 @@ internal static class MeldungAnzeige
                     if (seite is Shell sh) seite = sh.CurrentPage ?? seite;
                     if (seite == null) return;
                     string detail = ex == null ? "" : $"\n\n{typ}: {ex.Message}";
-                    bool ignorieren = await seite.DisplayAlert(
+                    bool ignorieren = await seite.DisplayAlertAsync(
                         L.T("fehler_titel"), kontext + detail, L.T("fehler_ignorieren"), L.T("ok"));
                     if (ignorieren) DauerhaftIgnorieren(schluessel);
                 }

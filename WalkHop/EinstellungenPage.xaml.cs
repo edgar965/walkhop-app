@@ -68,6 +68,11 @@ public partial class EinstellungenPage : ContentPage
         // Konstruktor läuft nur einmal) – so bleibt nach Verlassen+Zurückkehren genau EIN Abo bestehen.
         L.Geaendert -= SpracheAngewendet;
         L.Geaendert += SpracheAngewendet;
+        // Gruppen-Zustand auch reagieren lassen, wenn er sich extern ändert (z. B. Deep-Link-Beitritt),
+        // während der Gruppe-Tab sichtbar ist – sonst zeigte er veraltete Knöpfe/Status.
+        GruppeLive.Geaendert -= GruppeGeaendert;
+        GruppeLive.Geaendert += GruppeGeaendert;
+        GruppeAnzeigen();
         CacheGroesseAnzeigen();
         StandardPunktAnzeigen();
         ProtokollGroesseAnzeigen();
@@ -79,6 +84,7 @@ public partial class EinstellungenPage : ContentPage
     {
         base.OnDisappearing();
         L.Geaendert -= SpracheAngewendet;   // Sprachwechsel-Abo lösen (kein Leak/Mehrfach-Aufruf)
+        GruppeLive.Geaendert -= GruppeGeaendert;
     }
 
     // ---- Tab-Umschaltung ---------------------------------------------------
@@ -89,11 +95,14 @@ public partial class EinstellungenPage : ContentPage
         TabAllgemein.IsVisible = name == "allgemein";
         TabNavigation.IsVisible = name == "navigation";
         TabKarte.IsVisible = name == "karte";
+        TabGruppe.IsVisible = name == "gruppe";
         TabAnmeldung.IsVisible = name == "anmeldung";
         SegSet(SegAllg, LblAllg, name == "allgemein");
         SegSet(SegNavi, LblNavi, name == "navigation");
         SegSet(SegKarte, LblKarte, name == "karte");
+        SegSet(SegGruppe, LblGruppe, name == "gruppe");
         SegSet(SegKonto, LblKonto, name == "anmeldung");
+        if (name == "gruppe") GruppeAnzeigen();
     }
 
     // Aktives Segment: weißer Pill + dunkler, fetter Text; inaktiv: transparent + grau.
@@ -116,7 +125,7 @@ public partial class EinstellungenPage : ContentPage
     private async void OnFehlerReset(object? sender, EventArgs e)
     {
         Meldung.IgnorierteZuruecksetzen();
-        await DisplayAlert(L.T("nav_einstellungen"), L.T("einst_fehler_reset_ok"), L.T("ok"));
+        await DisplayAlertAsync(L.T("nav_einstellungen"), L.T("einst_fehler_reset_ok"), L.T("ok"));
     }
 
     // Diagnose-Protokoll an den Server senden; bei Erfolg wird es lokal gelöscht.
@@ -126,9 +135,9 @@ public partial class EinstellungenPage : ContentPage
         try
         {
             if (Protokoll.Groesse() == 0)
-            { await DisplayAlert(L.T("einst_sec_protokoll"), L.T("protokoll_leer"), L.T("ok")); return; }
+            { await DisplayAlertAsync(L.T("einst_sec_protokoll"), L.T("protokoll_leer"), L.T("ok")); return; }
             bool ok = await Protokoll.AnServerSendenAsync();
-            await DisplayAlert(L.T("einst_sec_protokoll"),
+            await DisplayAlertAsync(L.T("einst_sec_protokoll"),
                 L.T(ok ? "protokoll_gesendet" : "protokoll_fehler"), L.T("ok"));
         }
         finally { LogsSendenBtn.IsEnabled = true; ProtokollGroesseAnzeigen(); }
@@ -136,7 +145,7 @@ public partial class EinstellungenPage : ContentPage
 
     private async void OnLogsLoeschen(object? sender, EventArgs e)
     {
-        bool ja = await DisplayAlert(L.T("einst_sec_protokoll"), L.T("protokoll_loeschen_frage"),
+        bool ja = await DisplayAlertAsync(L.T("einst_sec_protokoll"), L.T("protokoll_loeschen_frage"),
             L.T("einst_logs_loeschen"), L.T("abbrechen"));
         if (!ja) return;
         Protokoll.Loesche();
@@ -388,7 +397,7 @@ public partial class EinstellungenPage : ContentPage
         int budget = Auth.AlleFunktionen ? int.MaxValue : (Auth.Premium ? 3 : 0) + Auth.OfflineGekauft;
         if (Einst.OfflineAnzahl >= budget)
         {
-            bool hin = await DisplayAlert(L.T("offline_titel"), L.T("offline_premium_text"),
+            bool hin = await DisplayAlertAsync(L.T("offline_titel"), L.T("offline_premium_text"),
                 L.T("offline_zum_konto"), L.T("abbrechen"));
             if (hin) await Shell.Current.GoToAsync("//konto");
             return;
@@ -402,7 +411,7 @@ public partial class EinstellungenPage : ContentPage
         catch (Exception ex) { Debug.WriteLine(ex); }
         if (loc == null)
         {
-            await DisplayAlert(L.T("offline_laden_titel"), L.T("offline_kein_standort"), L.T("ok"));
+            await DisplayAlertAsync(L.T("offline_laden_titel"), L.T("offline_kein_standort"), L.T("ok"));
             return;
         }
 
@@ -418,9 +427,9 @@ public partial class EinstellungenPage : ContentPage
         {
             int n = await Task.Run(() => OfflineKarte.DownloadAsync(quelle, bereich, 13, 15, 400, prog));
             if (n > 0) Einst.OfflineAnzahl++;
-            await DisplayAlert(L.T("offline_titel"), L.T("offline_gespeichert", n), L.T("ok"));
+            await DisplayAlertAsync(L.T("offline_titel"), L.T("offline_gespeichert", n), L.T("ok"));
         }
-        catch (Exception ex) { Debug.WriteLine(ex); await DisplayAlert(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok")); }
+        catch (Exception ex) { Debug.WriteLine(ex); await DisplayAlertAsync(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok")); }
         finally
         {
             _laedtOffline = false;
@@ -439,7 +448,7 @@ public partial class EinstellungenPage : ContentPage
         int budget = Auth.AlleFunktionen ? int.MaxValue : (Auth.Premium ? 3 : 0) + Auth.OfflineGekauft;
         if (Einst.OfflineAnzahl >= budget)
         {
-            bool hin = await DisplayAlert(L.T("offline_titel"), L.T("offline_premium_text"), L.T("offline_zum_konto"), L.T("abbrechen"));
+            bool hin = await DisplayAlertAsync(L.T("offline_titel"), L.T("offline_premium_text"), L.T("offline_zum_konto"), L.T("abbrechen"));
             if (hin) await Shell.Current.GoToAsync("//konto");
             return;
         }
@@ -447,9 +456,9 @@ public partial class EinstellungenPage : ContentPage
         try
         {
             var regionen = await RegionenService.LadeAsync();
-            if (regionen.Count == 0) { await DisplayAlert(L.T("einst_region_laden_btn"), L.T("region_keine"), L.T("ok")); return; }
+            if (regionen.Count == 0) { await DisplayAlertAsync(L.T("einst_region_laden_btn"), L.T("region_keine"), L.T("ok")); return; }
             var namen = regionen.Select(r => $"{r.Gruppe} – {r.Name}").ToArray();
-            string wahl = await DisplayActionSheet(L.T("region_waehlen_titel"), L.T("abbrechen"), null, namen);
+            string wahl = await DisplayActionSheetAsync(L.T("region_waehlen_titel"), L.T("abbrechen"), null, namen);
             if (string.IsNullOrEmpty(wahl) || wahl == L.T("abbrechen")) return;
             int idx = Array.IndexOf(namen, wahl);
             if (idx < 0) return;
@@ -460,7 +469,7 @@ public partial class EinstellungenPage : ContentPage
 
             var schaetz = OfflineManager.SchaetzeRegion(region, fotos);
             double mb = schaetz.Bytes / 1024.0 / 1024.0;
-            bool los = await DisplayAlert(region.Name,
+            bool los = await DisplayAlertAsync(region.Name,
                 L.T("region_schaetzung", schaetz.Kacheln, schaetz.Fotos, mb.ToString("0")),
                 L.T("region_laden_btn"), L.T("abbrechen"));
             if (!los) return;
@@ -474,12 +483,12 @@ public partial class EinstellungenPage : ContentPage
             if (erg.Ok)
             {
                 Einst.OfflineAnzahl++;
-                await DisplayAlert(L.T("offline_titel"),
+                await DisplayAlertAsync(L.T("offline_titel"),
                     L.T("region_fertig", region.Name, erg.Kacheln, erg.Fotos, (erg.Bytes / 1024.0 / 1024.0).ToString("0")), L.T("ok"));
             }
-            else await DisplayAlert(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok"));
+            else await DisplayAlertAsync(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok"));
         }
-        catch (Exception ex) { Debug.WriteLine(ex); await DisplayAlert(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok")); }
+        catch (Exception ex) { Debug.WriteLine(ex); await DisplayAlertAsync(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok")); }
         finally
         {
             _laedtOffline = false;
@@ -506,7 +515,7 @@ public partial class EinstellungenPage : ContentPage
                 status = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
             if (status != PermissionStatus.Granted)
             {
-                await DisplayAlert(L.T("standardpunkt_titel"), L.T("standort_keine_berechtigung"), L.T("ok"));
+                await DisplayAlertAsync(L.T("standardpunkt_titel"), L.T("standort_keine_berechtigung"), L.T("ok"));
                 return;
             }
 
@@ -520,24 +529,24 @@ public partial class EinstellungenPage : ContentPage
                 Einst.StandardLng = loc.Longitude;
                 Einst.StandardName = "eigener Punkt";
                 StandardPunktAnzeigen();
-                await DisplayAlert(L.T("standardpunkt_titel"), L.T("standardpunkt_gesetzt"), L.T("ok"));
+                await DisplayAlertAsync(L.T("standardpunkt_titel"), L.T("standardpunkt_gesetzt"), L.T("ok"));
             }
-            else await DisplayAlert(L.T("standardpunkt_titel"), L.T("standardpunkt_kein_standort"), L.T("ok"));
+            else await DisplayAlertAsync(L.T("standardpunkt_titel"), L.T("standardpunkt_kein_standort"), L.T("ok"));
         }
         catch (FeatureNotEnabledException ex)   // Ortungsdienste am Gerät ausgeschaltet
         {
             Debug.WriteLine(ex);
-            await DisplayAlert(L.T("standardpunkt_titel"), L.T("standort_gps_aus"), L.T("ok"));
+            await DisplayAlertAsync(L.T("standardpunkt_titel"), L.T("standort_gps_aus"), L.T("ok"));
         }
         catch (PermissionException ex)          // Berechtigung fehlt/verweigert
         {
             Debug.WriteLine(ex);
-            await DisplayAlert(L.T("standardpunkt_titel"), L.T("standort_keine_berechtigung"), L.T("ok"));
+            await DisplayAlertAsync(L.T("standardpunkt_titel"), L.T("standort_keine_berechtigung"), L.T("ok"));
         }
         catch (Exception ex)                    // alles andere: Fehler NICHT mehr still schlucken
         {
             Debug.WriteLine(ex);
-            await DisplayAlert(L.T("standardpunkt_titel"), L.T("standort_fehler"), L.T("ok"));
+            await DisplayAlertAsync(L.T("standardpunkt_titel"), L.T("standort_fehler"), L.T("ok"));
         }
         finally { StandardAufPositionBtn.IsEnabled = true; }
     }
@@ -552,7 +561,7 @@ public partial class EinstellungenPage : ContentPage
 
     private async void OnCacheLeeren(object? sender, EventArgs e)
     {
-        bool ja = await DisplayAlert(L.T("cache_leeren_titel"), L.T("cache_leeren_frage"), L.T("cache_leeren_btn"), L.T("abbrechen"));
+        bool ja = await DisplayAlertAsync(L.T("cache_leeren_titel"), L.T("cache_leeren_frage"), L.T("cache_leeren_btn"), L.T("abbrechen"));
         if (!ja) return;
         try
         {
@@ -609,7 +618,7 @@ public partial class EinstellungenPage : ContentPage
 
     private async void OnAbmelden(object? sender, EventArgs e)
     {
-        bool ja = await DisplayAlert(L.T("logout_titel"), L.T("abmelden_frage"), L.T("logout_titel"), L.T("abbrechen"));
+        bool ja = await DisplayAlertAsync(L.T("logout_titel"), L.T("abmelden_frage"), L.T("logout_titel"), L.T("abbrechen"));
         if (!ja) return;
         await Auth.AbmeldenAsync();
         EmailFeld.Text = "";
@@ -618,7 +627,7 @@ public partial class EinstellungenPage : ContentPage
 
     private async void OnKaufen(object? sender, EventArgs e)
     {
-        bool web = await DisplayAlert(L.T("premium_titel"), L.T("premium_text"),
+        bool web = await DisplayAlertAsync(L.T("premium_titel"), L.T("premium_text"),
             L.T("premium_website"), L.T("schliessen"));
         if (web) { try { await Launcher.OpenAsync("https://spin1more.com/konto/"); } catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Website öffnen", ex); } }
     }

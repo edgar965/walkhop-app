@@ -2,18 +2,15 @@ using NUnit.Framework;
 
 namespace WalkHop.UITests;
 
-/// <summary>Neue Navigations-Funktionen: Gruppen-Knopf + Sprachansage-Toggle (Voice-Pfad).
-/// EIN Neustart je Fixture im OneTimeSetUp, dann nur Prüfungen.</summary>
+/// <summary>Neue Navigations-Funktionen: Sprachansage-Toggle (Voice-Pfad).
+/// EIN Neustart je Fixture im OneTimeSetUp, dann nur Prüfungen.
+/// (Der frühere 👥-Gruppen-Knopf ist aus der Navi-Leiste entfernt – Gruppe sitzt jetzt in
+/// Einstellungen → Tab „Gruppe"; abgedeckt von GruppeTests.)</summary>
 [TestFixture]
 public class NaviNeuTests : AppBasis
 {
     [OneTimeSetUp]
     public void Auf() { Neustart(); GehZu("Navigation"); }
-
-    // Gruppen-Position: neuer 👥-Knopf in der rechten Steuerleiste.
-    [Test]
-    public void Leiste_zeigt_Gruppen_Knopf()
-        => Assert.That(Da(ResId("navi_gruppe")), Is.True, "Gruppen-Knopf 'navi_gruppe' fehlt");
 
     // Sprachansage: der Ton-Knopf löst die TTS-Ausgabe aus (Sprich(...)). Hier als Rauch-Test –
     // Audio lässt sich nicht prüfen, aber das Ein-/Ausschalten darf die App nicht abstürzen lassen.

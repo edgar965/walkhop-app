@@ -59,10 +59,10 @@ public partial class App : Application
 
 		try
 		{
-			bool sprache = await seite.DisplayAlert(L.T("erst_titel"), L.T("erst_sprache_frage"), L.T("ja"), L.T("nein"));
+			bool sprache = await seite.DisplayAlertAsync(L.T("erst_titel"), L.T("erst_sprache_frage"), L.T("ja"), L.T("nein"));
 			Einst.Ton = sprache;
 
-			bool toene = await seite.DisplayAlert(L.T("erst_titel"), L.T("erst_toene_frage"), L.T("ja"), L.T("nein"));
+			bool toene = await seite.DisplayAlertAsync(L.T("erst_titel"), L.T("erst_toene_frage"), L.T("ja"), L.T("nein"));
 			Einst.Benachrichtigungstoene = toene;
 
 			Einst.ErstkonfigErledigt = true;

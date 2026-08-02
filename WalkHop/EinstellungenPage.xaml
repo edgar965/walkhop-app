@@ -48,38 +48,50 @@
 
     <Grid RowDefinitions="Auto,*">
 
-        <!-- Tab-Leiste (Segmented) – nutzt das Standard-Template (Hamburger + Titel der Shell-NavBar) -->
+        <!-- Tab-Leiste (Segmented) in ZWEI Zeilen: fünf Tabs passen einzeilig nicht mehr über die
+             Breite (liefen rechts über). Zeile 1: Allgemein · Navigation · Karte; Zeile 2: Gruppe · Anmeldung. -->
         <Border Grid.Row="0" Style="{StaticResource Card}" Margin="12,12,12,4" Padding="4"
                 BackgroundColor="#e2e8f0" StrokeShape="RoundRectangle 12">
-            <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="2">
-                <Border x:Name="SegAllg" Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnTab" CommandParameter="allgemein" />
-                    </Border.GestureRecognizers>
-                    <Label x:Name="LblAllg" Text="{loc:Translate einst_tab_allgemein}" FontSize="13" HorizontalOptions="Center"
-                           VerticalOptions="Center" LineBreakMode="TailTruncation" />
-                </Border>
-                <Border x:Name="SegNavi" Grid.Column="1" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnTab" CommandParameter="navigation" />
-                    </Border.GestureRecognizers>
-                    <Label x:Name="LblNavi" Text="{loc:Translate einst_tab_navigation}" FontSize="13" HorizontalOptions="Center"
-                           VerticalOptions="Center" LineBreakMode="TailTruncation" />
-                </Border>
-                <Border x:Name="SegKarte" Grid.Column="2" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnTab" CommandParameter="karte" />
-                    </Border.GestureRecognizers>
-                    <Label x:Name="LblKarte" Text="{loc:Translate einst_tab_karte}" FontSize="13" HorizontalOptions="Center"
-                           VerticalOptions="Center" LineBreakMode="TailTruncation" />
-                </Border>
-                <Border x:Name="SegKonto" Grid.Column="3" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnTab" CommandParameter="anmeldung" />
-                    </Border.GestureRecognizers>
-                    <Label x:Name="LblKonto" Text="{loc:Translate einst_tab_anmeldung}" FontSize="13" HorizontalOptions="Center"
-                           VerticalOptions="Center" LineBreakMode="TailTruncation" />
-                </Border>
+            <Grid RowDefinitions="Auto,Auto" RowSpacing="2">
+                <Grid Grid.Row="0" ColumnDefinitions="*,*,*" ColumnSpacing="2">
+                    <Border x:Name="SegAllg" Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnTab" CommandParameter="allgemein" />
+                        </Border.GestureRecognizers>
+                        <Label x:Name="LblAllg" Text="{loc:Translate einst_tab_allgemein}" FontSize="13" HorizontalOptions="Center"
+                               VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                    </Border>
+                    <Border x:Name="SegNavi" Grid.Column="1" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnTab" CommandParameter="navigation" />
+                        </Border.GestureRecognizers>
+                        <Label x:Name="LblNavi" Text="{loc:Translate einst_tab_navigation}" FontSize="13" HorizontalOptions="Center"
+                               VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                    </Border>
+                    <Border x:Name="SegKarte" Grid.Column="2" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnTab" CommandParameter="karte" />
+                        </Border.GestureRecognizers>
+                        <Label x:Name="LblKarte" Text="{loc:Translate einst_tab_karte}" FontSize="13" HorizontalOptions="Center"
+                               VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                    </Border>
+                </Grid>
+                <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="2">
+                    <Border x:Name="SegGruppe" Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnTab" CommandParameter="gruppe" />
+                        </Border.GestureRecognizers>
+                        <Label x:Name="LblGruppe" Text="{loc:Translate einst_tab_gruppe}" FontSize="13" HorizontalOptions="Center"
+                               VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                    </Border>
+                    <Border x:Name="SegKonto" Grid.Column="1" StrokeThickness="0" StrokeShape="RoundRectangle 9" Padding="0,9">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnTab" CommandParameter="anmeldung" />
+                        </Border.GestureRecognizers>
+                        <Label x:Name="LblKonto" Text="{loc:Translate einst_tab_anmeldung}" FontSize="13" HorizontalOptions="Center"
+                               VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                    </Border>
+                </Grid>
             </Grid>
         </Border>
 
@@ -400,7 +412,30 @@
                     </Border>
                 </VerticalStackLayout>
 
-                <!-- ================= Tab 4: Anmeldung / Premium ================= -->
+                <!-- ================= Tab 4: Gruppe (Live-Position teilen) ================= -->
+                <VerticalStackLayout x:Name="TabGruppe" Spacing="12" IsVisible="False">
+                    <Label Text="{loc:Translate einst_sec_gruppe}" Style="{StaticResource Sec}" />
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="{loc:Translate einst_gruppe_info}" FontSize="12" TextColor="#64748b" />
+                            <Label x:Name="GruppeStatusLabel" FontSize="14" FontAttributes="Bold" TextColor="#0f172a" />
+                            <!-- Ohne aktive Gruppe: erstellen oder per Code beitreten -->
+                            <Button x:Name="GruppeErstellenBtn" AutomationId="gruppe_erstellen" Text="{loc:Translate gruppe_erstellen}" Clicked="OnGruppeErstellen"
+                                    BackgroundColor="#16a34a" TextColor="White" CornerRadius="10" />
+                            <Button x:Name="GruppeBeitretenBtn" AutomationId="gruppe_beitreten" Text="{loc:Translate einst_gruppe_beitreten}" Clicked="OnGruppeBeitreten"
+                                    BackgroundColor="#0d9488" TextColor="White" CornerRadius="10" />
+                            <!-- Mit aktiver Gruppe: einladen, Namen ändern, verlassen -->
+                            <Button x:Name="GruppeTeilenBtn" AutomationId="gruppe_teilen" Text="{loc:Translate gruppe_teilen}" Clicked="OnGruppeTeilen"
+                                    BackgroundColor="#0c4a6e" TextColor="White" CornerRadius="10" IsVisible="False" />
+                            <Button x:Name="GruppeNameBtn" AutomationId="gruppe_name" Text="{loc:Translate gruppe_name_aendern}" Clicked="OnGruppeNameAendern"
+                                    BackgroundColor="#64748b" TextColor="White" CornerRadius="10" IsVisible="False" />
+                            <Button x:Name="GruppeVerlassenBtn" AutomationId="gruppe_verlassen" Text="{loc:Translate gruppe_verlassen}" Clicked="OnGruppeVerlassen"
+                                    BackgroundColor="#e2231a" TextColor="White" CornerRadius="10" IsVisible="False" />
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+
+                <!-- ================= Tab 5: Anmeldung / Premium ================= -->
                 <VerticalStackLayout x:Name="TabAnmeldung" Spacing="12" IsVisible="False">
                     <Border Style="{StaticResource Card}">
                         <VerticalStackLayout Spacing="4">

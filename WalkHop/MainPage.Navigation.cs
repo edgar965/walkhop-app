@@ -99,7 +99,7 @@ public partial class MainPage
     {
         Status(null);
         text ??= L.T("paywall_text", Auth.GratisProTag);
-        bool hin = await DisplayAlert(L.T("paywall_titel"), text, L.T("paywall_btn"), L.T("schliessen"));
+        bool hin = await DisplayAlertAsync(L.T("paywall_titel"), text, L.T("paywall_btn"), L.T("schliessen"));
         if (hin) await Shell.Current.GoToAsync("//konto");
     }
 
@@ -413,7 +413,7 @@ public partial class MainPage
     {
         _sheetOffen = offen;
         double ziel = offen ? 0 : Math.Max(0, _sheetHoehe - SheetPeek);
-        if (animiert) _ = NaviPanel.TranslateTo(0, ziel, 220, Easing.CubicOut);
+        if (animiert) _ = NaviPanel.TranslateToAsync(0, ziel, 220, Easing.CubicOut);
         else NaviPanel.TranslationY = ziel;
         if (offen) HoeheView.Invalidate();
     }

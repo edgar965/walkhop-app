@@ -278,7 +278,14 @@ public partial class MainPage : ContentPage
         }
         await GpsStart();
         KompassStart();
-        if (_gruppeCode.Length > 0) GruppeStart();   // Gruppen-Polling fortsetzen, falls beigetreten
+        // Gruppen-Zustand mit den Einstellungen abgleichen (Beitritt/Verlassen passiert jetzt in
+        // Einstellungen → Tab „Gruppe"): beigetreten → Polling starten, sonst Marker sicher entfernen.
+        // Diese Seite pollt SELBST (eigener _gruppeTimer) und ist KEIN GruppeLive-Konsument → den
+        // geteilten GruppeLive-Poller hier pausieren, sonst liefen beide Timer parallel (doppelter Abruf).
+        GruppeLive.Pausieren();
+        _gruppeCode = Einst.GruppenCode;
+        GruppeIconAktualisieren();
+        if (_gruppeCode.Length > 0) GruppeStart(); else GruppeStop();
 
         // Track-Aufnahme automatisch starten (Default), wenn in den Einstellungen aktiviert.
         if (Einst.AutoAufnahme && !_aufnahme && !_autoAufnahmeProbiert)

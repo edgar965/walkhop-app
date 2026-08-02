@@ -19,6 +19,11 @@ public partial class UebersichtPage
     // Pan/Zentrieren (GPS-Folgen ändert die Auflösung NICHT) bleibt unberührt.
     private void BeiViewportAenderung()
     {
+        // Manuelle Geste (Finger zoomt/schwenkt die Karte) → „Folgen" lösen. Sonst zentriert die
+        // Live-GPS-Schleife die Karte sofort wieder auf die eigene Position → der Zoom „springt zurück".
+        // Über !KameraFrei (statt rohem _userBeruehrt): so löst ein PROGRAMMATISCHES Zurückzentrieren nach
+        // verlorenem TouchEnded (dann greift KameraFreis 4-s-Auto-Reset) das Folgen NICHT fälschlich.
+        if (!KameraFrei && _folgen) { _folgen = false; KompassIconAktualisieren(); }
         double res = _map.Navigator.Viewport.Resolution;
         if (!KarteHelfer.ZoomWesentlich(res, _letzteZoomRes)) return;
         _letzteZoomRes = res;
@@ -77,7 +82,7 @@ public partial class UebersichtPage
         string navZu = L.T("ktx_navigation_zu"), neueW = L.T("ktx_neue_wanderung"), markerOpt = L.T("ktx_marker_setzen");
         var optionen = new List<string> { navZu, neueW, markerOpt };
         optionen.Add(Standort.EntfernungZeile(lat, lon, _letzteGeo));   // Info-Zeile vor „Abbrechen"
-        string wahl = await DisplayActionSheet(null, L.T("abbrechen"), null, optionen.ToArray());
+        string wahl = await DisplayActionSheetAsync(null, L.T("abbrechen"), null, optionen.ToArray());
         if (wahl == navZu)
         {
             MainPage.GeplantesZiel = (lat, lon);

@@ -58,7 +58,7 @@ public partial class UebersichtPage
             catch (Exception ex) { Debug.WriteLine(ex); }
             var schaetz = OfflineManager.SchaetzeTour(t.Route, _fotos);
             double mb = schaetz.Bytes / 1024.0 / 1024.0;
-            bool los = await DisplayAlert(t.Name,
+            bool los = await DisplayAlertAsync(t.Name,
                 L.T("region_schaetzung", schaetz.Kacheln, schaetz.Fotos, mb.ToString("0")),
                 L.T("region_laden_btn"), L.T("abbrechen"));
             if (!los) return;
@@ -71,10 +71,10 @@ public partial class UebersichtPage
             var erg = await Task.Run(() => OfflineManager.LadeTourAsync(tourId, t.Name, t.Route, quelle, _fotos, prog));
             Status(null);
             if (erg.Ok)
-                await DisplayAlert(L.T("offline_titel"),
+                await DisplayAlertAsync(L.T("offline_titel"),
                     L.T("offline_paket_fertig", t.Name, erg.Kacheln, erg.Fotos, (erg.Bytes / 1024.0 / 1024.0).ToString("0")), L.T("ok"));
             else
-                await DisplayAlert(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok"));
+                await DisplayAlertAsync(L.T("offline_laden_titel"), L.T("offline_fehler"), L.T("ok"));
         }
         catch (Exception ex) { Debug.WriteLine(ex); Status(null); Meldung.Fehler("Tour offline speichern", ex); }
         finally { DlgOfflineBtn.IsEnabled = true; }
