@@ -614,6 +614,9 @@ public partial class EinstellungenPage : ContentPage
         if (fehler != null) { FehlerLabel.Text = fehler; FehlerLabel.IsVisible = true; return; }
         PasswortFeld.Text = "";
         KontoAnzeigen();
+        // Soft-Modell: Konto ist sofort nutzbar (Demo-Rechte). Nur Hinweis, die E-Mail zu bestätigen.
+        if (!Auth.EmailBestaetigt)
+            await DisplayAlertAsync(L.T("konto_bestaetigung_titel"), L.T("konto_bestaetigung_text"), L.T("ok"));
     }
 
     private async void OnAbmelden(object? sender, EventArgs e)

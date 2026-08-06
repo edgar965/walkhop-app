@@ -45,10 +45,21 @@ public static class Auth
     public static bool Vollzugriff => Premium || IstAdmin;
     /// <summary>Wird ausgelöst, wenn sich der Konto-Status geändert hat (Login/Logout/Refresh).</summary>
     public static event Action? StatusGeaendert;
+    /// <summary>Wird ausgelöst, wenn ein Tages-Limit der aktuellen Stufe erreicht ist
+    /// (Parameter = Art des Limits: „zeit"/„routen"/…). Die UI zeigt daraufhin den
+    /// Registrieren-/Upgrade-Hinweis. Feuert pro Tag/Session nur einmal.</summary>
+    public static event Action<string>? LimitErreicht;
     public static int RoutenHeute { get => Preferences.Get("k_routen", 0); private set => Preferences.Set("k_routen", value); }
     public static int GratisProTag { get => Preferences.Get("k_gratis", 2); private set => Preferences.Set("k_gratis", value); }
     public static int CreditsRouten { get => Preferences.Get("k_cr", 0); private set => Preferences.Set("k_cr", value); }
     public static int OfflineGekauft { get => Preferences.Get("k_off", 0); private set => Preferences.Set("k_off", value); }
+    // Nutzungsstufe + Zeit-Budget (Demo = X Min/Tag). Für Anzeige und Bestätigungs-Hinweis.
+    public static string Stufe { get => Preferences.Get("k_stufe", "demo"); private set => Preferences.Set("k_stufe", value); }
+    public static bool EmailBestaetigt { get => Preferences.Get("k_ebest", false); private set => Preferences.Set("k_ebest", value); }
+    public static int MinutenProTag { get => Preferences.Get("k_minlim", 0); private set => Preferences.Set("k_minlim", value); }
+    public static int MinutenHeuteS { get => Preferences.Get("k_minhs", 0); private set => Preferences.Set("k_minhs", value); }
+    // Merker, damit der Limit-Dialog nicht bei jedem Ping erneut aufpoppt (Reset bei neuem Tag).
+    private static bool _limitGemeldet;
 
     /// <summary>Beim App-Start: Token laden bzw. anonymes Geräte-Konto anlegen.</summary>
     public static async Task InitAsync()
@@ -83,6 +94,39 @@ public static class Auth
             if (resp.IsSuccessStatusCode) await StatusUebernehmen(await resp.Content.ReadAsStringAsync());
         }
         catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Konto-Status laden", ex); }
+    }
+
+    /// <summary>Nutzungs-Heartbeat: meldet aktive Vordergrund-Sekunden an den Server
+    /// (Zeit-Budget der Stufe + Tracking). Erreicht das Konto sein Tages-Limit, wird
+    /// einmalig <see cref="LimitErreicht"/> ausgelöst (die UI zeigt den Hinweis).</summary>
+    public static async Task PingAsync(int sekunden)
+    {
+        if (!Angemeldet || sekunden <= 0) return;
+        try
+        {
+            var json = JsonSerializer.Serialize(new { sekunden });
+            using var req = new HttpRequestMessage(HttpMethod.Post, AppConfig.ApiBase + "/api/nutzung/ping/")
+            { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+            req.Headers.Add("Authorization", "Token " + _token);
+            using var resp = await _http.SendAsync(req);
+            if (!resp.IsSuccessStatusCode) return;
+            var roh = await resp.Content.ReadAsStringAsync();
+            await StatusUebernehmen(roh);   // aktualisiert Zähler/Minuten + feuert StatusGeaendert
+            using var doc = JsonDocument.Parse(roh);
+            var r = doc.RootElement;
+            bool limit = r.TryGetProperty("limit_erreicht", out var le) && le.ValueKind == JsonValueKind.True;
+            if (limit && !_limitGemeldet)
+            {
+                _limitGemeldet = true;
+                string art = TextFeld(r, "limit") ?? "zeit";
+                MainThread.BeginInvokeOnMainThread(() => LimitErreicht?.Invoke(art));
+            }
+            else if (!limit)
+            {
+                _limitGemeldet = false;   // neuer Tag / Upgrade → Hinweis wieder erlauben
+            }
+        }
+        catch (Exception ex) { Debug.WriteLine(ex); }
     }
 
     /// <summary>Login bestehender Nutzer. Gibt null bei Erfolg, sonst die Fehlermeldung.</summary>
@@ -144,8 +188,10 @@ public static class Auth
         // (sonst sähe der nächste Nutzer auf einem geteilten Gerät den Namen des vorigen)
         // und Gratis-Kontingent (sonst bliebe ein erhöhtes Premium-Limit stehen).
         foreach (var k in new[] { "k_anonym", "k_email", "k_vorname", "k_name", "k_plan",
-                                  "k_premium", "k_alle", "k_routen", "k_gratis", "k_cr", "k_off" })
+                                  "k_premium", "k_alle", "k_routen", "k_gratis", "k_cr", "k_off",
+                                  "k_stufe", "k_ebest", "k_minlim", "k_minhs" })
             Preferences.Remove(k);
+        _limitGemeldet = false;
         await GeraetKontoAsync();   // sofort neues anonymes Konto
     }
 
@@ -185,6 +231,10 @@ public static class Auth
             if (r.TryGetProperty("gratis_pro_tag", out var g) && g.ValueKind == JsonValueKind.Number) GratisProTag = g.GetInt32();
             if (r.TryGetProperty("credits_routen", out var cr) && cr.ValueKind == JsonValueKind.Number) CreditsRouten = cr.GetInt32();
             if (r.TryGetProperty("offline_gekauft", out var of) && of.ValueKind == JsonValueKind.Number) OfflineGekauft = of.GetInt32();
+            if (TextFeld(r, "stufe") is { Length: > 0 } st) Stufe = st;
+            if (r.TryGetProperty("email_bestaetigt", out var eb)) EmailBestaetigt = eb.ValueKind == JsonValueKind.True;
+            if (r.TryGetProperty("minuten_pro_tag", out var mp) && mp.ValueKind == JsonValueKind.Number) MinutenProTag = mp.GetInt32();
+            if (r.TryGetProperty("minuten_heute_s", out var mh) && mh.ValueKind == JsonValueKind.Number) MinutenHeuteS = mh.GetInt32();
         }
         catch (Exception ex) { Debug.WriteLine(ex); Meldung.Fehler("Konto-Status verarbeiten", ex); }
         try { MainThread.BeginInvokeOnMainThread(() => StatusGeaendert?.Invoke()); }

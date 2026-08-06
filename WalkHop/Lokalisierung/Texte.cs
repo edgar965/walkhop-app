@@ -211,6 +211,14 @@ public static class Texte
         // ---- Konto (Einstellungen-Tab 4 + KontoPage) ----
         ["konto_titel"] = "Konto",
         ["konto_testkonto"] = "Testkonto",
+        // Registrierungs-Bestätigung + Demo-Limit-Hinweis
+        ["konto_bestaetigung_titel"] = "Fast geschafft!",
+        ["konto_bestaetigung_text"] = "Wir haben dir eine E-Mail geschickt. Bestätige deine Adresse über den Link darin – bis dahin kannst du die App wie gewohnt (Demo) weiter nutzen.",
+        ["demo_limit_titel"] = "Demo-Limit erreicht",
+        ["demo_limit_zeit"] = "Du hast dein heutiges Demo-Zeitkontingent aufgebraucht. Registriere dich kostenlos, um mehr zu nutzen – oder komm morgen wieder.",
+        ["demo_limit_funktion"] = "Du hast dein heutiges Demo-Kontingent aufgebraucht. Registriere dich kostenlos, um mehr zu nutzen – oder komm morgen wieder.",
+        ["demo_limit_registrieren"] = "Registrieren",
+        ["demo_limit_spaeter"] = "Später",
         ["konto_premium"] = "Premium",
         ["konto_premium_alle"] = "Premium (alle Funktionen)",
         ["konto_status_angemeldet"] = "Angemeldet als {0}",
@@ -586,6 +594,14 @@ public static class Texte
         // Account
         ["konto_titel"] = "Account",
         ["konto_testkonto"] = "Test account",
+        // Registration confirmation + demo-limit hint
+        ["konto_bestaetigung_titel"] = "Almost done!",
+        ["konto_bestaetigung_text"] = "We've sent you an email. Confirm your address via the link inside – until then you can keep using the app in demo mode.",
+        ["demo_limit_titel"] = "Demo limit reached",
+        ["demo_limit_zeit"] = "You've used up today's demo time. Sign up for free to use more – or come back tomorrow.",
+        ["demo_limit_funktion"] = "You've used up today's demo allowance. Sign up for free to use more – or come back tomorrow.",
+        ["demo_limit_registrieren"] = "Sign up",
+        ["demo_limit_spaeter"] = "Later",
         ["konto_premium"] = "Premium",
         ["konto_premium_alle"] = "Premium (all features)",
         ["konto_status_angemeldet"] = "Signed in as {0}",
